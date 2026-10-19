@@ -59,14 +59,6 @@ class CellStatsTest {
     }
 
     @Test
-    fun `datasheet range marks cells outside 2_30 to 3_75 V`() {
-        assertTrue(CellLimits.isOutOfRange(2.299))
-        assertTrue(CellLimits.isOutOfRange(3.751))
-        assertTrue(!CellLimits.isOutOfRange(2.30))
-        assertTrue(!CellLimits.isOutOfRange(3.75))
-    }
-
-    @Test
     fun `current flow has an idle band around zero`() {
         assertEquals(CurrentFlow.DISCHARGING, CurrentFlow.of(-12.4))
         assertEquals(CurrentFlow.CHARGING, CurrentFlow.of(0.2))

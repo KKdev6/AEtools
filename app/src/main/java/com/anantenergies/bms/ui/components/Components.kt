@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.anantenergies.bms.R
 import com.anantenergies.bms.domain.CellLimits
+import com.anantenergies.bms.domain.TemperatureLevel
+import com.anantenergies.bms.domain.TemperatureLimits
 import com.anantenergies.bms.ui.theme.AeShapes
 import com.anantenergies.bms.ui.theme.AeTheme
 
@@ -40,6 +42,14 @@ import com.anantenergies.bms.ui.theme.AeTheme
 @Composable
 fun cellColor(volts: Double, normal: Color): Color =
     if (CellLimits.isOutOfRange(volts)) AeTheme.colors.error else normal
+
+/** Temperatures above 45 °C are orange, above 50 °C red. */
+@Composable
+fun temperatureColor(celsius: Double): Color = when (TemperatureLimits.level(celsius)) {
+    TemperatureLevel.NORMAL -> AeTheme.colors.textPrimary
+    TemperatureLevel.WARM -> AeTheme.colors.discharge
+    TemperatureLevel.HOT -> AeTheme.colors.error
+}
 
 /** A surface card with a 12 dp corner and a hairline border. */
 @Composable

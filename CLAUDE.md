@@ -119,6 +119,7 @@ Unit tests must cover: these three frames, the same frames split into 20-byte ch
 - Read-only: no writing of BMS parameters, ever.
 - Cell count comes from the BMS (10–24), never hard-coded.
 - Colour limits from the DB24SA08 datasheet: cell range 2.30–3.75 V; balancing starts at 3.30 V with a spread over 15 mV.
+- Temperature colours (owner decision): above 45 °C orange, above 50 °C red, judged in °C whatever unit is displayed.
 
 ## Screens
 

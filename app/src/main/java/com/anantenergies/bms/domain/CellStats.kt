@@ -4,16 +4,6 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/** Limits from the DB24SA08 datasheet, used for colouring. */
-object CellLimits {
-    const val MIN_V = 2.30
-    const val MAX_V = 3.75
-    const val BALANCE_START_V = 3.30
-    const val BALANCE_SPREAD_V = 0.015
-
-    fun isOutOfRange(volts: Double) = volts < MIN_V || volts > MAX_V
-}
-
 /** Highest, lowest and average cell. Indices are zero-based; ties go to the first cell. */
 data class CellStats(
     val highestIndex: Int,

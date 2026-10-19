@@ -66,6 +66,7 @@ import com.anantenergies.bms.ui.components.OutlineButton
 import com.anantenergies.bms.ui.components.StatusChip
 import com.anantenergies.bms.ui.components.StatusDot
 import com.anantenergies.bms.ui.components.cellColor
+import com.anantenergies.bms.ui.components.temperatureColor
 import com.anantenergies.bms.ui.linkLabel
 import com.anantenergies.bms.ui.linkStatusLine
 import com.anantenergies.bms.ui.rememberNow
@@ -343,7 +344,7 @@ private fun TemperaturesCard(snapshot: BmsSnapshot, unit: TempUnit) {
                 snapshot.temperatures.chunked(3).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         row.forEach {
-                            Stat(it.label, Format.temperature(it.celsius, unit), AeTheme.colors.textPrimary, Modifier.weight(1f))
+                            Stat(it.label, Format.temperature(it.celsius, unit), temperatureColor(it.celsius), Modifier.weight(1f))
                         }
                         repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
                     }
