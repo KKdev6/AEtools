@@ -27,7 +27,7 @@ Owner: Anant Energies (tagline "Empowering the future").
 - Jetpack DataStore (Preferences) for settings.
 - Android's built-in BLE APIs (`BluetoothLeScanner`, `BluetoothGatt`); no third-party BLE library.
 - Unit tests: JUnit (JVM tests under `src/test`), no device needed.
-- Fonts: IBM Plex Sans and IBM Plex Mono (SIL Open Font License), bundled in `res/font`.
+- Fonts: IBM Plex Sans, IBM Plex Mono and Roboto Mono Bold (all SIL Open Font License), bundled in `res/font`.
 
 ## Architecture (built for more BMS brands later)
 
@@ -142,7 +142,7 @@ Behaviour: poll 0x03 then 0x04 every refresh interval while a screen is visible;
 
 ## Visual design
 
-- Fonts: IBM Plex Sans for text, IBM Plex Mono for all numbers.
+- Fonts: IBM Plex Sans for text, IBM Plex Mono for all numbers. Owner decision: the labels of readings in cards (Voltage, Current, Power, Highest / Lowest / Average / Spread, T1–T3) use Roboto Mono Bold, tracking −0.02 em. Card titles and "State of charge" stay IBM Plex Sans.
 - Shapes: cards 12 dp corners; small tiles and buttons 4 dp; status chips fully rounded (pills).
 - Brand assets are in `app/src/main/res/drawable/` (copy from the `assets/` folder delivered with this file): `ae_mark.png` (cyan AE mark, for dark theme), `ae_mark_dark.png` (deeper cyan, for light theme), `anant_wordmark.png` (cyan wordmark). Never redraw the logo. The only recolouring allowed (owner decision): the wordmark is tinted black in the light theme, because the cyan is unreadable on white.
 

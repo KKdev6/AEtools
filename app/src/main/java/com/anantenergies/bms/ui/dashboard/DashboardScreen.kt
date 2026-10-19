@@ -281,7 +281,7 @@ private fun valueWithUnit(value: String, unit: String): AnnotatedString {
 @Composable
 private fun Metric(label: String, value: AnnotatedString, valueColor: Color = AeTheme.colors.textPrimary) {
     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(label, style = AeTheme.type.small, color = AeTheme.colors.textSecondary, modifier = Modifier.alignByBaseline())
+        Text(label, style = AeTheme.type.parameter, color = AeTheme.colors.textSecondary, modifier = Modifier.alignByBaseline())
         Spacer(Modifier.weight(1f))
         Text(value, style = AeTheme.type.numberLarge, color = valueColor, modifier = Modifier.alignByBaseline())
     }
@@ -290,7 +290,7 @@ private fun Metric(label: String, value: AnnotatedString, valueColor: Color = Ae
 @Composable
 private fun Stat(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
     Column(modifier) {
-        Text(label, style = AeTheme.type.label, color = AeTheme.colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = AeTheme.type.parameterSmall, color = AeTheme.colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(value, style = AeTheme.type.numberMedium, color = color, maxLines = 1)
     }
 }

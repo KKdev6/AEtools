@@ -106,7 +106,7 @@ private fun Tile(label: String, value: String, color: Color, modifier: Modifier)
             .border(1.dp, colors.border, AeShapes.small)
             .padding(10.dp),
     ) {
-        Text(label, style = AeTheme.type.label, color = colors.textSecondary, maxLines = 1)
+        Text(label, style = AeTheme.type.parameterSmall, color = colors.textSecondary, maxLines = 1)
         Text(value, style = AeTheme.type.number.copy(fontSize = 15.sp), color = color, maxLines = 1)
     }
 }

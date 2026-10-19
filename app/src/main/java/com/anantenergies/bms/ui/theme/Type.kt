@@ -23,6 +23,11 @@ val PlexMono = FontFamily(
     Font(R.font.ibm_plex_mono_semibold, FontWeight.SemiBold),
 )
 
+/** Bold labels of the readings in cards (owner decision). */
+val RobotoMono = FontFamily(
+    Font(R.font.roboto_mono_bold, FontWeight.Bold),
+)
+
 /** Text styles. Colours are left unset; text takes the current content colour unless given one. */
 @Immutable
 data class AeType(
@@ -35,6 +40,10 @@ data class AeType(
     val label: TextStyle,
     val sectionLabel: TextStyle,
     val tag: TextStyle,
+    /** Labels of readings, e.g. "Voltage". */
+    val parameter: TextStyle,
+    /** Smaller labels of readings, e.g. "Highest · #7", "T1". */
+    val parameterSmall: TextStyle,
     val numberHero: TextStyle,
     val numberLarge: TextStyle,
     val numberMedium: TextStyle,
@@ -48,6 +57,15 @@ private fun sans(size: Int, weight: FontWeight = FontWeight.Normal, lineHeight: 
 private fun mono(size: Int, weight: FontWeight = FontWeight.Normal) =
     TextStyle(fontFamily = PlexMono, fontWeight = weight, fontSize = size.sp, lineHeight = (size * 1.25).sp)
 
+// Slightly tightened, as in the reference; also keeps "Highest · #12" on one line on 360 dp phones.
+private fun parameterLabel(size: Int) = TextStyle(
+    fontFamily = RobotoMono,
+    fontWeight = FontWeight.Bold,
+    fontSize = size.sp,
+    lineHeight = (size * 1.35).sp,
+    letterSpacing = (-0.02).em,
+)
+
 val DefaultType = AeType(
     screenTitle = sans(26, FontWeight.SemiBold, lineHeight = 1.2),
     headerTitle = sans(18, FontWeight.SemiBold, lineHeight = 1.25),
@@ -58,6 +76,8 @@ val DefaultType = AeType(
     label = sans(12),
     sectionLabel = sans(12, FontWeight.SemiBold).copy(letterSpacing = 0.06.em),
     tag = sans(11, FontWeight.Medium),
+    parameter = parameterLabel(13),
+    parameterSmall = parameterLabel(12),
     numberHero = mono(36, FontWeight.SemiBold).copy(lineHeight = 36.sp),
     numberLarge = mono(18, FontWeight.Medium),
     numberMedium = mono(16),
