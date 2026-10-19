@@ -14,7 +14,7 @@ Owner: Anant Energies (tagline "Empowering the future").
 
 - The owner edits code in VS Code with Claude Code and builds/runs in Android Studio, in the same folder.
 - Work one milestone at a time (see Milestones). At the end of each milestone, stop, make sure `./gradlew assembleDebug` and `./gradlew testDebugUnitTest` pass, and tell the owner exactly what to run and what they should see.
-- Commit to git after each working milestone with a clear message.
+- Commit to git after each working milestone with a clear message. Commit locally only; the owner pushes to GitHub.
 - Do not add libraries beyond what this file names without asking.
 - Ask before changing anything in "Product decisions".
 
@@ -34,9 +34,9 @@ Owner: Anant Energies (tagline "Empowering the future").
 ```
 ui/            Compose screens, theme, components
 domain/        BmsSnapshot (common data model), BmsDriver interface
-drivers/jbd/   JbdDriver, JbdFrame (encode/decode), JbdParser
-drivers/demo/  DemoBmsDriver (simulated pack, no Bluetooth)
-ble/           BleScanner, BleConnection (GATT wrapper, chunk reassembly, request/response queue)
+drivers/jbd/   JbdDriver (request/response queue, polling), JbdFrame (encode/decode, chunk reassembly), JbdParser
+drivers/demo/  DemoBmsDriver (simulated pack, no Bluetooth; debug source set only)
+ble/           BleScanner, BleConnection (GATT wrapper: connects to the services a driver names, writes bytes, streams notification chunks; knows nothing about any brand)
 data/          SettingsRepository (DataStore), BmsRepository (picks driver, runs polling)
 ```
 
@@ -44,6 +44,11 @@ data/          SettingsRepository (DataStore), BmsRepository (picks driver, runs
 - `BmsDriver` interface: `fun matches(scanResult): Boolean` (recognise this brand from the advertisement or service UUIDs), `suspend fun connect(...)`, `fun snapshots(): Flow<BmsSnapshot>`, `suspend fun disconnect()`.
 - The UI only ever sees `BmsSnapshot`. Adding JK BMS later means adding `drivers/jk/` with its own frame parser and one line in the driver registry. No screen code changes.
 - Keep protocol parsing pure (bytes in, data out, no Android types) so it is fully unit-testable.
+- Planned second brand: **JK BD series boards** (no others for now). JK streams large frames over one shared FFE0 channel instead of answering polls, so each driver owns its framing, reassembly and polling; the BLE layer stays a plain byte pipe.
+- Recognising a brand: first from the advertisement (service UUIDs, name), then, for a device that wasn't recognised, from the GATT services found after connecting. There is no manual brand picker; unrecognised devices are listed with whatever the board advertises.
+- The remembered device stores which driver it uses, so auto-connect goes straight to the right one.
+- Read-only guard: each driver can only produce a fixed set of read requests (for JBD the `JbdRequest` values), and a unit test fails if it could send anything else.
+- When JK is added, the cell colour limits (now the DB24SA08 values) become per driver/chemistry. Ask the owner first, as that touches Product decisions.
 
 ## JBD protocol (BLE)
 
@@ -173,4 +178,4 @@ A MOS that is off is shown as a neutral grey chip, not red. The full token set, 
 3. **Bluetooth.** Permissions, scanning, recognising JBD, connecting, notifications, the request/response queue, polling, reconnect. Add a debug screen (hidden behind 5 taps on the app version) that shows raw TX/RX hex and discovered UUIDs, so we can diagnose the real board.
 4. **Polish.** Auto-connect, Bluetooth-off and permission-denied states, empty and error states, app icon from the AE mark.
 
-Future (not now): JK BMS driver, data logging/export, multiple saved packs.
+Future (not now): JK BMS driver (JK BD series boards), data logging/export, multiple saved packs.
