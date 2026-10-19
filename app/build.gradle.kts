@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.bms.aetools"
+    namespace = "com.anantenergies.bms"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.bms.aetools"
+        applicationId = "com.anantenergies.bms"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
@@ -45,6 +45,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.datastore.preferences)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

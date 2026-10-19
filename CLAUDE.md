@@ -21,6 +21,7 @@ Owner: Anant Energies (tagline "Empowering the future").
 ## Tech stack
 
 - Kotlin, Jetpack Compose, Material 3, single-activity app with Navigation Compose.
+- Application ID and package `com.anantenergies.bms`; app name "AEtools".
 - minSdk 26, compile/target SDK = the latest stable the installed Android Studio offers.
 - Coroutines + Flow for all BLE and polling work. ViewModels expose `StateFlow`.
 - Jetpack DataStore (Preferences) for settings.
@@ -125,7 +126,7 @@ Reference mockup (owner can open it): https://claude.ai/artifact/KTUwenqcppsFq8o
 
 Bottom navigation with three tabs: **Dashboard** (gauge icon), **Cells** (bar-chart icon), **Devices** (Bluetooth icon). Settings opens from a gear button at the top right of the Dashboard.
 
-1. **Connect / Devices.** Title "Connect to BMS", a short hint ("Keep your phone within a few metres of the battery. The BMS sleeps after a minute with no current, so wake it by connecting a load or charger if it doesn't show up."), Anant Energies logo (AE mark + wordmark) at the top. Live scan list: device name, MAC (partly masked), signal strength in dBm; a BMS the app recognises gets a highlighted border and "JBD service found". Stop/scan button. At the bottom, in debug builds only, a "No BMS nearby?" card with a **Start demo mode** button.
+1. **Connect / Devices.** Title "Connect to BMS", a short hint ("Keep your phone within a few metres of the battery. The BMS sleeps after a minute with no current, so wake it by connecting a load or charger if it doesn't show up."), Anant Energies logo (AE mark + wordmark) at the top. Live scan list: device name, MAC (partly masked), signal strength in dBm; a BMS the app recognises (advertises the JBD service or has a known JBD-style name) gets a highlighted border and "JBD service found". Other devices are labelled "Not recognised" but can still be tapped, with a confirmation, so an unexpected board can be diagnosed; devices with no name are hidden behind a toggle. Stop/scan button. At the bottom, in debug builds only, a "No BMS nearby?" card with a **Start demo mode** button.
 2. **Dashboard.** Header: AE mark, "DB24SA08 · 16S" (model and cell count), status line "Connected · −62 dBm · updated 1 s ago", gear button. Then:
    - **Battery card:** header row "Battery" with a status pill on the right (Charging / Discharging / Idle). Body: SOC ring (brand cyan) with the big percentage and "State of charge" inside; beside it a list of Voltage, Current (orange when discharging), Power.
    - Below that, three cards that share the remaining height equally: **Cells** (highest cell #n in orange, lowest #n in blue, spread in mV, "16 cells · 3 balancing ›", tapping opens Cells), **Temperatures** (each sensor), **Status** ("No protections active" or the active protection messages, chips: Charge MOS on/off, Discharge MOS on/off, Heater on/off when known, cycle count). Values in the Cells and Temperatures cards are vertically centred under the title.
@@ -134,7 +135,7 @@ Bottom navigation with three tabs: **Dashboard** (gauge icon), **Cells** (bar-ch
    - Connection: Auto-connect on launch (switch), Refresh rate 1 s / 2 s / 5 s (default 2 s).
    - Display: Theme System / Dark / Light (default Dark), Temperature unit °C / °F.
    - This BMS: name, MAC, model, connected state; Disconnect and Forget this BMS buttons.
-   - About: App version, then the ANANT ENERGIES wordmark with "Empowering the future" in white directly underneath (4 dp gap).
+   - About: App version, then the ANANT ENERGIES wordmark with "Empowering the future" directly underneath (4 dp gap), white in the dark theme and black in the light theme.
 
 Behaviour: poll 0x03 then 0x04 every refresh interval while a screen is visible; auto-reconnect with backoff when the link drops and show "Reconnecting…"; remember the last device and auto-connect if enabled. Ask for permissions properly: Android 12+ `BLUETOOTH_SCAN` (with `neverForLocation`) and `BLUETOOTH_CONNECT`; Android 8–11 `ACCESS_FINE_LOCATION`. Handle "Bluetooth is off" with a clear prompt.
 
@@ -142,7 +143,7 @@ Behaviour: poll 0x03 then 0x04 every refresh interval while a screen is visible;
 
 - Fonts: IBM Plex Sans for text, IBM Plex Mono for all numbers.
 - Shapes: cards 12 dp corners; small tiles and buttons 4 dp; status chips fully rounded (pills).
-- Brand assets are in `app/src/main/res/drawable/` (copy from the `assets/` folder delivered with this file): `ae_mark.png` (cyan AE mark, for dark theme), `ae_mark_dark.png` (deeper cyan, for light theme), `anant_wordmark.png` (cyan wordmark). Never recolour or redraw the logo.
+- Brand assets are in `app/src/main/res/drawable/` (copy from the `assets/` folder delivered with this file): `ae_mark.png` (cyan AE mark, for dark theme), `ae_mark_dark.png` (deeper cyan, for light theme), `anant_wordmark.png` (cyan wordmark). Never redraw the logo. The only recolouring allowed (owner decision): the wordmark is tinted black in the light theme, because the cyan is unreadable on white.
 
 Colour tokens:
 
@@ -160,6 +161,9 @@ Colour tokens:
 | OK / MOS on | #6FE0C4 (chip border #2F5A50) | #0E7A62 (chip border #9FD6C6) |
 | connected dot | #3CC8A8 | #12A37F |
 | balancing tag | bg #1E3550, text #9FD0FF | bg #DCE8F7, text #1F64B5 |
+| warning / protections / cell outside 2.30–3.75 V | #FF8A80 (bg #3D1C1C, border #6B2E2E) | #B3261E (bg #FCE4E2, border #F1B5AF) |
+
+A MOS that is off is shown as a neutral grey chip, not red. The full token set, including the few extra colours the mockup needs, is in `ui/theme/Color.kt`.
 
 ## Milestones
 
