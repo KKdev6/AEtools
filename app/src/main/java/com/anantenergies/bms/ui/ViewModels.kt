@@ -36,9 +36,10 @@ class MainViewModel(settings: SettingsRepository, private val bms: BmsRepository
     val settings: StateFlow<Settings?> = settings.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val isDemo: StateFlow<Boolean> = bms.session
-        .map { it?.isDemo == true }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    /** The address of the demo pack or simulated board while one is connected, for the demo banner. */
+    val demoAddress: StateFlow<String?> = bms.session
+        .map { session -> session?.takeIf { it.isDemo }?.device?.address }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     fun exitDemo() = bms.disconnect()
 }

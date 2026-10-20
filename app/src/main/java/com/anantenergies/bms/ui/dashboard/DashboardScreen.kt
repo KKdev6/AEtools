@@ -61,6 +61,7 @@ import com.anantenergies.bms.ui.components.AeMark
 import com.anantenergies.bms.ui.components.CardTitle
 import com.anantenergies.bms.ui.components.ChipTone
 import com.anantenergies.bms.ui.components.EmptyState
+import com.anantenergies.bms.ui.components.FittingText
 import com.anantenergies.bms.ui.components.IconPill
 import com.anantenergies.bms.ui.components.OutlineButton
 import com.anantenergies.bms.ui.components.StatusChip
@@ -68,7 +69,7 @@ import com.anantenergies.bms.ui.components.StatusDot
 import com.anantenergies.bms.ui.components.cellColor
 import com.anantenergies.bms.ui.components.temperatureColor
 import com.anantenergies.bms.ui.linkLabel
-import com.anantenergies.bms.ui.linkStatusLine
+import com.anantenergies.bms.ui.linkStatusLines
 import com.anantenergies.bms.ui.rememberNow
 import com.anantenergies.bms.ui.theme.AeShapes
 import com.anantenergies.bms.ui.theme.AeTheme
@@ -112,7 +113,7 @@ private fun Header(state: LiveState, onOpenSettings: () -> Unit) {
         "Dashboard"
     }
     val (label, dot) = linkLabel(state.link)
-    val status = linkStatusLine(state.link, label, snapshot?.timestamp, rememberNow())
+    val status = linkStatusLines(state.link, label, snapshot?.timestamp, rememberNow())
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -124,7 +125,7 @@ private fun Header(state: LiveState, onOpenSettings: () -> Unit) {
             Text(title, style = AeTheme.type.headerTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 StatusDot(dot)
-                Text(status, style = AeTheme.type.small, color = colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                FittingText(status, style = AeTheme.type.small, color = colors.textSecondary)
             }
         }
         Spacer(Modifier.width(8.dp))

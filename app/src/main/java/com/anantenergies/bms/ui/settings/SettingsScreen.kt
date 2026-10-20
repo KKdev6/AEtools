@@ -17,8 +17,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -91,7 +94,12 @@ class SettingsViewModel(private val settings: SettingsRepository, private val bm
 }
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onDisconnected: () -> Unit) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+    onDisconnected: () -> Unit,
+    /** Opens the Bluetooth log after 5 taps on the app version; null in release builds. */
+    onOpenDebug: (() -> Unit)?,
+) {
     val viewModel = appViewModel { SettingsViewModel(it.settings, it.bms) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val settings = state.settings
@@ -195,7 +203,21 @@ fun SettingsScreen(onBack: () -> Unit, onDisconnected: () -> Unit) {
                 val version = remember {
                     context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
                 }
-                LabelledRow("App version") {
+                var taps by remember { mutableIntStateOf(0) }
+                LabelledRow(
+                    "App version",
+                    modifier = if (onOpenDebug != null) {
+                        Modifier.clickable(indication = null, interactionSource = null) {
+                            taps++
+                            if (taps >= DEBUG_TAPS) {
+                                taps = 0
+                                onOpenDebug()
+                            }
+                        }
+                    } else {
+                        Modifier
+                    },
+                ) {
                     Text(version, style = AeTheme.type.number, color = colors.textSecondary)
                 }
                 Divider()
@@ -294,12 +316,14 @@ private fun Section(title: String, content: @Composable ColumnScope.() -> Unit) 
     }
 }
 
+private const val DEBUG_TAPS = 5
+
 @Composable
-private fun LabelledRow(label: String, trailing: @Composable () -> Unit) {
+private fun LabelledRow(label: String, modifier: Modifier = Modifier, trailing: @Composable () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        modifier = modifier.fillMaxWidth().padding(vertical = 12.dp),
     ) {
         Text(label, style = AeTheme.type.bodyLarge, modifier = Modifier.weight(1f))
         trailing()

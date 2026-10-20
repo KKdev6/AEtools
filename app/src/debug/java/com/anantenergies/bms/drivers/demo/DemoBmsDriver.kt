@@ -1,7 +1,6 @@
 package com.anantenergies.bms.drivers.demo
 
 import com.anantenergies.bms.dev.DemoControl
-import com.anantenergies.bms.domain.Advertisement
 import com.anantenergies.bms.domain.BmsDevice
 import com.anantenergies.bms.domain.BmsDriver
 import com.anantenergies.bms.domain.BmsInfo
@@ -49,8 +48,6 @@ class DemoBmsDriver(
 
     private val _info = MutableStateFlow<BmsInfo?>(null)
     override val info: StateFlow<BmsInfo?> = _info.asStateFlow()
-
-    override fun matches(advertisement: Advertisement) = false
 
     override suspend fun connect(device: BmsDevice) {
         _linkState.value = LinkState.Connecting

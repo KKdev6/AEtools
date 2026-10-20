@@ -41,7 +41,8 @@ data/          SettingsRepository (DataStore), BmsRepository (picks driver, runs
 ```
 
 - `BmsSnapshot` is brand-neutral: pack voltage (V), current (A, + = charging, − = discharging), power (W, computed), SOC (%), cycle count, cell voltages (list, V), balancing cells (set of indices), temperatures (list of labelled readings, °C), charge MOS on/off, discharge MOS on/off, heater state (nullable, unknown if the BMS doesn't report it), active protections (list of enum values), cell count, timestamp.
-- `BmsDriver` interface: `fun matches(scanResult): Boolean` (recognise this brand from the advertisement or service UUIDs), `suspend fun connect(...)`, `fun snapshots(): Flow<BmsSnapshot>`, `suspend fun disconnect()`.
+- `BmsBrand` (one per brand, listed in the registry in `AppContainer`): `id`, `name`, `serviceUuid`, `fun matches(advertisement): Boolean` (recognise this brand from the advertisement or service UUIDs), `fun create(): BmsDriver`.
+- `BmsDriver` (one per connection): `linkState`, `info`, `suspend fun connect(device)` (throws `BmsConnectException.NotSupported` / `Unreachable`), `fun snapshots(interval): Flow<BmsSnapshot>`, `suspend fun disconnect()`. `ble/LinkKeeper` gives any driver the first-connection retries and reconnect backoff.
 - The UI only ever sees `BmsSnapshot`. Adding JK BMS later means adding `drivers/jk/` with its own frame parser and one line in the driver registry. No screen code changes.
 - Keep protocol parsing pure (bytes in, data out, no Android types) so it is fully unit-testable.
 - Planned second brand: **JK BD series boards** (no others for now). JK streams large frames over one shared FFE0 channel instead of answering polls, so each driver owns its framing, reassembly and polling; the BLE layer stays a plain byte pipe.
@@ -176,6 +177,15 @@ A MOS that is off is shown as a neutral grey chip, not red. The full token set, 
 1. **Skeleton + demo.** Theme (both palettes, fonts, shapes), navigation, all four screens fed by `DemoBmsDriver`, settings saved in DataStore. Done when the app runs on a phone or emulator in demo mode and every screen matches the description.
 2. **JBD parser.** `JbdFrame` encode/decode, chunk reassembly, `JbdParser` to `BmsSnapshot`, with all unit tests above passing.
 3. **Bluetooth.** Permissions, scanning, recognising JBD, connecting, notifications, the request/response queue, polling, reconnect. Add a debug screen (hidden behind 5 taps on the app version) that shows raw TX/RX hex and discovered UUIDs, so we can diagnose the real board.
+   - Status: built and tested without hardware. Debug builds list a **simulated JBD board** in the scan (`drivers/sim/`, debug source set) that answers with real JBD frames over a fake link; long-press its banner for faults (dropped/corrupt replies, link drop, silent BMS, protections).
+   - Still to confirm on the real DB24SA08: GATT UUIDs and advertised name, byte layout of 0x03/0x04, what 0x05 returns (shown as the model), which temperature index is the board/MOS sensor, heater state.
 4. **Polish.** Auto-connect, Bluetooth-off and permission-denied states, empty and error states, app icon from the AE mark.
+   - Done early: app icon, Bluetooth-off / Location-off / permission prompts, status line that shortens on narrow phones, release signing setup.
 
 Future (not now): JK BMS driver (JK BD series boards), data logging/export, multiple saved packs.
+
+## Release signing
+
+- `app/build.gradle.kts` signs release builds when `keystore.properties` exists next to `settings.gradle.kts` (format in `keystore.properties.example`). It and any `*.jks` / `*.keystore` are git-ignored; never commit them or paste passwords into chat.
+- The owner creates the key once (Android Studio: Build → Generate Signed App Bundle or APK → Create new…), keeps the `.jks` outside the project, and backs up the file and both passwords. Losing them means no more updates to the same Play listing (Play App Signing reduces the risk).
+- Without `keystore.properties`, release builds come out unsigned.

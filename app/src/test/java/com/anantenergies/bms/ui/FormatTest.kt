@@ -1,6 +1,7 @@
 package com.anantenergies.bms.ui
 
 import com.anantenergies.bms.data.TempUnit
+import com.anantenergies.bms.domain.LinkState
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -41,6 +42,16 @@ class FormatTest {
     fun `address keeps the first three bytes`() {
         assertEquals("A4:C1:38:••:••:••", Format.maskedAddress("A4:C1:38:12:34:56"))
         assertEquals("not-a-mac", Format.maskedAddress("not-a-mac"))
+    }
+
+    @Test
+    fun `status line gets shorter for narrow screens`() {
+        val lines = linkStatusLines(LinkState.Connected(rssi = -62), "Connected", updatedAt = 1_000, now = 2_000)
+        assertEquals(
+            listOf("Connected · −62 dBm · updated 1 s ago", "Connected · −62 dBm · 1 s ago", "Connected · 1 s ago"),
+            lines,
+        )
+        assertEquals(listOf("Connecting…"), linkStatusLines(LinkState.Connecting, "Connecting…", updatedAt = null, now = 0))
     }
 
     @Test

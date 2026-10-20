@@ -56,6 +56,9 @@ private object Routes {
     const val CELLS = "cells"
     const val DEVICES = "devices"
     const val SETTINGS = "settings"
+
+    /** Bluetooth log; debug builds only. */
+    const val DEBUG = "debug"
 }
 
 private data class Tab(val route: String, val label: String, @param:DrawableRes val icon: Int)
@@ -70,7 +73,7 @@ private val Tabs = listOf(
 fun AppRoot() {
     val viewModel = appViewModel { MainViewModel(it.settings, it.bms) }
     val settings by viewModel.settings.collectAsStateWithLifecycle()
-    val isDemo by viewModel.isDemo.collectAsStateWithLifecycle()
+    val demoAddress by viewModel.demoAddress.collectAsStateWithLifecycle()
 
     val loaded = settings
     if (loaded == null) {
@@ -96,8 +99,8 @@ fun AppRoot() {
                 .background(AeTheme.colors.background)
                 .statusBarsPadding(),
         ) {
-            if (isDemo) {
-                DevTools.DemoBanner(onExitDemo = {
+            demoAddress?.let { address ->
+                DevTools.DemoBanner(address, onExitDemo = {
                     viewModel.exitDemo()
                     nav.showTab(Routes.DEVICES)
                 })
@@ -117,7 +120,18 @@ fun AppRoot() {
                     DevicesScreen(onConnected = { nav.showTab(Routes.DASHBOARD) })
                 }
                 composable(Routes.SETTINGS) {
-                    SettingsScreen(onBack = { nav.popBackStack() }, onDisconnected = { nav.showTab(Routes.DEVICES) })
+                    SettingsScreen(
+                        onBack = { nav.popBackStack() },
+                        onDisconnected = { nav.showTab(Routes.DEVICES) },
+                        onOpenDebug = if (DevTools.hasTrafficScreen) {
+                            { nav.navigate(Routes.DEBUG) { launchSingleTop = true } }
+                        } else {
+                            null
+                        },
+                    )
+                }
+                if (DevTools.hasTrafficScreen) {
+                    composable(Routes.DEBUG) { DevTools.TrafficScreen(onBack = { nav.popBackStack() }) }
                 }
             }
             if (Tabs.any { it.route == route }) {

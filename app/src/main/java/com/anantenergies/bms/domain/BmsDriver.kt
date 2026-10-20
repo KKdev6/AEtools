@@ -5,24 +5,50 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Duration
 
 /**
- * One BMS brand. Adding a brand means adding a driver and registering it;
- * screens never change.
+ * One BMS brand: recognises its boards and makes a driver for each connection.
+ * Adding a brand means adding one of these to the registry; screens never change.
  */
-interface BmsDriver {
+interface BmsBrand {
+    /** Stored with the remembered device, e.g. "jbd". */
+    val id: String
+
+    /** Shown to the user, e.g. "JBD". */
+    val name: String
+
+    /** The GATT service that identifies this brand, lower-case full UUID. */
+    val serviceUuid: String
+
     /** True when [advertisement] looks like this brand's BMS. */
     fun matches(advertisement: Advertisement): Boolean
 
+    fun create(): BmsDriver
+}
+
+/** One connection to one BMS. */
+interface BmsDriver {
     val linkState: StateFlow<LinkState>
 
     /** Model details, known once connected. */
     val info: StateFlow<BmsInfo?>
 
+    /**
+     * Returns once connected, or throws [BmsConnectException]. After that the driver keeps the
+     * link open, reconnecting with backoff when it drops, until [disconnect].
+     */
     suspend fun connect(device: BmsDevice)
 
     /** Reads the BMS every [interval] for as long as the flow is collected. */
     fun snapshots(interval: Duration): Flow<BmsSnapshot>
 
     suspend fun disconnect()
+}
+
+sealed class BmsConnectException(message: String) : Exception(message) {
+    /** Connected, but the board doesn't offer this brand's service. [services] lists what it does offer. */
+    class NotSupported(val services: List<String>) : BmsConnectException("Not a supported BMS")
+
+    /** Couldn't connect at all, e.g. out of range or asleep. */
+    class Unreachable(reason: String) : BmsConnectException(reason)
 }
 
 /** What a Bluetooth scan saw, without Android types, so drivers can be tested on the JVM. */
@@ -34,8 +60,8 @@ data class Advertisement(
     val serviceUuids: List<String>,
 )
 
-/** A BMS the app can connect to. */
-data class BmsDevice(val name: String, val address: String)
+/** A BMS the app can connect to. [brandId] is null until a brand has recognised it. */
+data class BmsDevice(val name: String, val address: String, val brandId: String? = null)
 
 /** Details that don't change while connected. */
 data class BmsInfo(

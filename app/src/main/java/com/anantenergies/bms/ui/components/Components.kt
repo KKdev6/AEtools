@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,8 +28,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.anantenergies.bms.R
@@ -200,6 +204,17 @@ fun EmptyState(title: String, message: String, modifier: Modifier = Modifier, ac
             Spacer(Modifier.height(8.dp))
             action()
         }
+    }
+}
+
+/** One line of text: the first of [candidates] that fits the width, else the last one cut off with "…". */
+@Composable
+fun FittingText(candidates: List<String>, style: TextStyle, color: Color, modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    BoxWithConstraints(modifier) {
+        val text = candidates.firstOrNull { measurer.measure(it, style, maxLines = 1).size.width <= constraints.maxWidth }
+            ?: candidates.last()
+        Text(text, style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

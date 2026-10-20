@@ -36,12 +36,18 @@ fun linkLabel(link: LinkState): Pair<String, Color> {
     }
 }
 
-/** Full status line, e.g. "Connected · −62 dBm · updated 1 s ago". */
-fun linkStatusLine(link: LinkState, label: String, updatedAt: Long?, now: Long): String {
-    val parts = mutableListOf(label)
-    if (link is LinkState.Connected) link.rssi?.let { parts += "${Format.rssi(it)} dBm" }
-    if (updatedAt != null && (link is LinkState.Connected || link is LinkState.Reconnecting)) {
-        parts += "updated " + Format.age(((now - updatedAt) / 1000).coerceAtLeast(0))
-    }
-    return parts.joinToString(" · ")
+/**
+ * The status line, longest first, for [FittingText]:
+ * "Connected · −62 dBm · updated 1 s ago", "Connected · −62 dBm · 1 s ago", "Connected · 1 s ago".
+ */
+fun linkStatusLines(link: LinkState, label: String, updatedAt: Long?, now: Long): List<String> {
+    val rssi = (link as? LinkState.Connected)?.rssi?.let { "${Format.rssi(it)} dBm" }
+    val age = updatedAt
+        ?.takeIf { link is LinkState.Connected || link is LinkState.Reconnecting }
+        ?.let { Format.age(((now - it) / 1000).coerceAtLeast(0)) }
+    return listOf(
+        listOfNotNull(label, rssi, age?.let { "updated $it" }),
+        listOfNotNull(label, rssi, age),
+        listOfNotNull(label, age),
+    ).map { it.joinToString(" · ") }.distinct()
 }

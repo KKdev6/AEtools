@@ -63,6 +63,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         store.edit {
             it[LAST_DEVICE_NAME] = device.name
             it[LAST_DEVICE_ADDRESS] = device.address
+            if (device.brandId != null) it[LAST_DEVICE_BRAND] = device.brandId else it.remove(LAST_DEVICE_BRAND)
         }
     }
 
@@ -70,6 +71,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         store.edit {
             it.remove(LAST_DEVICE_NAME)
             it.remove(LAST_DEVICE_ADDRESS)
+            it.remove(LAST_DEVICE_BRAND)
         }
     }
 
@@ -82,7 +84,7 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
             refreshSeconds = this[REFRESH_SECONDS]?.takeIf { it in Settings.REFRESH_CHOICES } ?: defaults.refreshSeconds,
             theme = enumOrNull<ThemeMode>(this[THEME]) ?: defaults.theme,
             tempUnit = enumOrNull<TempUnit>(this[TEMP_UNIT]) ?: defaults.tempUnit,
-            lastDevice = if (name != null && address != null) BmsDevice(name, address) else null,
+            lastDevice = if (name != null && address != null) BmsDevice(name, address, this[LAST_DEVICE_BRAND]) else null,
         )
     }
 
@@ -96,5 +98,6 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         val TEMP_UNIT = stringPreferencesKey("temp_unit")
         val LAST_DEVICE_NAME = stringPreferencesKey("last_device_name")
         val LAST_DEVICE_ADDRESS = stringPreferencesKey("last_device_address")
+        val LAST_DEVICE_BRAND = stringPreferencesKey("last_device_brand")
     }
 }
