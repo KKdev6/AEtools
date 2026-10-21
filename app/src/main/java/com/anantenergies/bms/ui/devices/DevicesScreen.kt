@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -32,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,8 +45,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
@@ -63,6 +67,9 @@ import com.anantenergies.bms.domain.Advertisement
 import com.anantenergies.bms.domain.BmsBrand
 import com.anantenergies.bms.domain.BmsDevice
 import com.anantenergies.bms.domain.LinkState
+import com.anantenergies.bms.qr.MacAddress
+import com.anantenergies.bms.qr.QrScanResult
+import com.anantenergies.bms.qr.QrScanner
 import com.anantenergies.bms.ui.Format
 import com.anantenergies.bms.ui.appViewModel
 import com.anantenergies.bms.ui.components.AeCard
@@ -81,11 +88,25 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration.Companion.seconds
 
 /** A device heard in the scan. [brand] is the brand that recognised it, if any. */
 data class FoundDevice(val advertisement: Advertisement, val brand: BmsBrand?) {
     val name: String get() = advertisement.name?.takeIf { it.isNotBlank() } ?: "Unknown device"
     val hasName: Boolean get() = !advertisement.name.isNullOrBlank()
+}
+
+/** Progress of connecting from the QR label on a battery pack. */
+sealed interface QrStatus {
+    /** Google Play services is downloading its QR scanner, once per phone. */
+    data object PreparingScanner : QrStatus
+
+    /** Scanning for the BMS whose address the label holds. */
+    data class Finding(val address: String) : QrStatus
+
+    data class NotFound(val address: String) : QrStatus
+
+    data class Failed(val message: String) : QrStatus
 }
 
 data class DevicesState(
@@ -99,6 +120,9 @@ data class DevicesState(
     val connect: ConnectStatus? = null,
     /** The device the app is connected to, if the link is up. */
     val connectedAddress: String? = null,
+    val qr: QrStatus? = null,
+    /** The device whose connection opens the Dashboard once it's up. */
+    val awaiting: String? = null,
 )
 
 class DevicesViewModel(
@@ -112,7 +136,10 @@ class DevicesViewModel(
     private val scanError = MutableStateFlow<String?>(null)
     private val found = MutableStateFlow<Map<String, Advertisement>>(emptyMap())
     private val showUnnamed = MutableStateFlow(false)
+    private val qr = MutableStateFlow<QrStatus?>(null)
+    private val awaiting = MutableStateFlow<String?>(null)
     private var scanJob: Job? = null
+    private var qrJob: Job? = null
 
     val permissions: Array<String> get() = bluetooth.requiredPermissions
 
@@ -124,7 +151,8 @@ class DevicesViewModel(
         combine(status, scanning, scanError, ::Triple),
         combine(found, showUnnamed, ::Pair),
         combine(bms.connectStatus, bms.session, bms.linkState, ::Triple),
-    ) { (status, scanning, scanError), (found, showUnnamed), (connect, session, link) ->
+        combine(qr, awaiting, ::Pair),
+    ) { (status, scanning, scanError), (found, showUnnamed), (connect, session, link), (qr, awaiting) ->
         val all = (DevTools.simulatedAdvertisements + found.values.filter { ad -> DevTools.simulatedAdvertisements.none { it.address == ad.address } })
             .map { ad -> FoundDevice(ad, brands.firstOrNull { it.matches(ad) }) }
             .sortedWith(compareBy<FoundDevice> { it.brand == null }.thenByDescending { it.advertisement.rssi })
@@ -137,6 +165,8 @@ class DevicesViewModel(
             showUnnamed = showUnnamed,
             connect = connect,
             connectedAddress = session?.device?.address?.takeIf { link is LinkState.Connected },
+            qr = qr,
+            awaiting = awaiting,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DevicesState())
 
@@ -158,11 +188,7 @@ class DevicesViewModel(
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                scanError.value = if (e is ScanFailedException) {
-                    "Scanning failed (code ${e.errorCode}). Wait a moment and scan again."
-                } else {
-                    "Scanning failed: ${e.message}"
-                }
+                scanError.value = scanFailedMessage(e)
             } finally {
                 scanning.value = false
             }
@@ -175,9 +201,13 @@ class DevicesViewModel(
     }
 
     fun connect(device: FoundDevice) {
-        // Android connects more reliably with no scan running.
-        stopScan()
-        bms.connect(BmsDevice(device.name, device.advertisement.address, device.brand?.id))
+        dismissQr()
+        startConnect(BmsDevice(device.name, device.advertisement.address, device.brand?.id))
+    }
+
+    /** Call once the Dashboard has opened for the awaited device, or its connection failed. */
+    fun stopAwaiting() {
+        awaiting.value = null
     }
 
     fun dismissError() = bms.clearConnectStatus()
@@ -188,8 +218,86 @@ class DevicesViewModel(
 
     fun startDemo() = bms.startDemo()
 
+    fun qrDownloading() {
+        qr.value = QrStatus.PreparingScanner
+    }
+
+    fun qrFailed(message: String) {
+        qr.value = QrStatus.Failed(message)
+    }
+
+    /** Text read from a pack's QR label: find the BMS it names, then connect. */
+    fun onQrRead(text: String) {
+        val address = MacAddress.findIn(text) ?: DevTools.simulatedAddressIn(text)
+        if (address == null) {
+            qr.value = QrStatus.Failed("This QR code doesn't contain a BMS address")
+        } else {
+            findAndConnect(address)
+        }
+    }
+
+    fun retryQr() {
+        (qr.value as? QrStatus.NotFound)?.let { findAndConnect(it.address) }
+    }
+
+    fun dismissQr() {
+        qrJob?.cancel()
+        qrJob = null
+        qr.value = null
+    }
+
+    /** Leaving the screen drops a QR search and the pending jump to the Dashboard. */
+    fun leave() {
+        dismissQr()
+        stopAwaiting()
+    }
+
+    private fun startConnect(device: BmsDevice) {
+        // Android connects more reliably with no scan running.
+        stopScan()
+        awaiting.value = device.address
+        bms.connect(device)
+    }
+
+    private fun findAndConnect(address: String) {
+        qrJob?.cancel()
+        val session = bms.session.value
+        if (session?.device?.address == address && bms.linkState.value is LinkState.Connected) {
+            // Already connected to this pack: just open the Dashboard.
+            qr.value = null
+            awaiting.value = address
+            return
+        }
+        stopScan()
+        qrJob = viewModelScope.launch {
+            qr.value = QrStatus.Finding(address)
+            val ad = try {
+                DevTools.simulatedAdvertisements.firstOrNull { it.address == address }
+                    ?: scanner.find(address, QR_FIND_TIMEOUT)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                qr.value = QrStatus.Failed(scanFailedMessage(e))
+                return@launch
+            }
+            if (ad == null) {
+                qr.value = QrStatus.NotFound(address)
+                return@launch
+            }
+            qr.value = null
+            val brand = brands.firstOrNull { it.matches(ad) }
+            startConnect(BmsDevice(ad.name?.takeIf { it.isNotBlank() } ?: "BMS", ad.address, brand?.id))
+        }
+    }
+
+    private fun scanFailedMessage(e: Exception) = if (e is ScanFailedException) {
+        "Scanning failed (code ${e.errorCode}). Wait a moment and scan again."
+    } else {
+        "Scanning failed: ${e.message}"
+    }
+
     private companion object {
         const val SCAN_DURATION_MS = 30_000L
+        val QR_FIND_TIMEOUT = 10.seconds
     }
 }
 
@@ -198,31 +306,45 @@ fun DevicesScreen(onConnected: () -> Unit) {
     val viewModel = appViewModel { DevicesViewModel(it.scanner, it.bluetooth, it.bms, it.brands) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val colors = AeTheme.colors
+    val activity = LocalActivity.current
+    val scope = rememberCoroutineScope()
     var confirm by remember { mutableStateOf<FoundDevice?>(null) }
-    var awaiting by rememberSaveable { mutableStateOf<String?>(null) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
     LaunchedEffect(state.bluetooth) {
         if (state.bluetooth == BluetoothStatus.READY) viewModel.startScan()
     }
     DisposableEffect(Unit) {
-        onDispose { viewModel.stopScan() }
+        onDispose {
+            viewModel.stopScan()
+            // A rotation keeps a QR search going; leaving the screen drops it.
+            if (activity?.isChangingConfigurations != true) viewModel.leave()
+        }
     }
     // Open the Dashboard once the device the user picked is connected.
-    LaunchedEffect(awaiting, state.connectedAddress, state.connect) {
-        if (awaiting != null && state.connect == null && state.connectedAddress == awaiting) {
-            awaiting = null
+    LaunchedEffect(state.awaiting, state.connectedAddress, state.connect) {
+        val awaiting = state.awaiting ?: return@LaunchedEffect
+        if (state.connect == null && state.connectedAddress == awaiting) {
+            viewModel.stopAwaiting()
             onConnected()
+        } else if (state.connect is ConnectStatus.Failed) {
+            viewModel.stopAwaiting()
         }
-        if (state.connect is ConnectStatus.Failed) awaiting = null
     }
 
     fun pick(device: FoundDevice) {
-        if (device.brand == null) {
-            confirm = device
-        } else {
-            awaiting = device.advertisement.address
-            viewModel.connect(device)
+        if (device.brand == null) confirm = device else viewModel.connect(device)
+    }
+
+    fun scanQr() {
+        val context = activity ?: return
+        viewModel.dismissQr()
+        scope.launch {
+            when (val result = QrScanner.scan(context, onDownloading = viewModel::qrDownloading)) {
+                is QrScanResult.Read -> viewModel.onQrRead(result.text)
+                QrScanResult.Cancelled -> viewModel.dismissQr()
+                is QrScanResult.Unavailable -> viewModel.qrFailed(result.message)
+            }
         }
     }
 
@@ -257,6 +379,43 @@ fun DevicesScreen(onConnected: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
             ) {
+                val visible = state.devices + if (state.showUnnamed) state.unnamed else emptyList()
+
+                QrButton(
+                    enabled = state.bluetooth == BluetoothStatus.READY &&
+                        state.qr !is QrStatus.PreparingScanner && state.qr !is QrStatus.Finding,
+                    onClick = { scanQr() },
+                )
+                when (val qr = state.qr) {
+                    QrStatus.PreparingScanner ->
+                        Message("Getting the QR scanner ready. Google Play services downloads it once.", busy = true)
+                    is QrStatus.Finding -> Message(
+                        "Looking for BMS ${Format.maskedAddress(qr.address)}…",
+                        busy = true,
+                        actionLabel = "Cancel",
+                        onAction = viewModel::dismissQr,
+                    )
+                    is QrStatus.NotFound -> Message(
+                        "BMS not found. Make sure it's nearby.",
+                        isError = true,
+                        actionLabel = "Retry",
+                        onAction = viewModel::retryQr,
+                    )
+                    is QrStatus.Failed -> Message(qr.message, isError = true, onAction = viewModel::dismissQr)
+                    null -> {}
+                }
+                // A device reached through its QR code may not be in the list to show its own spinner.
+                (state.connect as? ConnectStatus.Connecting)?.device
+                    ?.takeIf { device -> visible.none { it.advertisement.address == device.address } }
+                    ?.let { Message("Connecting to ${it.name}…", busy = true) }
+                Text(
+                    "or pick it from the list below",
+                    style = AeTheme.type.small,
+                    color = colors.textSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
                 if (state.bluetooth == BluetoothStatus.READY) {
                     ScanRow(state.scanning, onScan = viewModel::startScan, onStop = viewModel::stopScan)
                 } else {
@@ -264,12 +423,11 @@ fun DevicesScreen(onConnected: () -> Unit) {
                 }
 
                 (state.connect as? ConnectStatus.Failed)?.let { failed ->
-                    Message(failed.message, isError = true, onDismiss = viewModel::dismissError)
+                    Message(failed.message, isError = true, onAction = viewModel::dismissError)
                 }
                 state.scanError?.let { Message(it, isError = true) }
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val visible = state.devices + if (state.showUnnamed) state.unnamed else emptyList()
                     visible.forEach { device ->
                         val address = device.advertisement.address
                         DeviceRow(
@@ -319,7 +477,6 @@ fun DevicesScreen(onConnected: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     confirm = null
-                    awaiting = device.advertisement.address
                     viewModel.connect(device)
                 }) { Text("Connect", color = colors.brand) }
             },
@@ -420,18 +577,54 @@ private fun BluetoothPrompt(status: BluetoothStatus, permissions: Array<String>,
     }
 }
 
+/** The main way in: the QR label on the battery pack holds its BMS's address. */
 @Composable
-private fun Message(text: String, isError: Boolean, onDismiss: (() -> Unit)? = null) {
+private fun QrButton(enabled: Boolean, onClick: () -> Unit) {
+    val colors = AeTheme.colors
+    val foreground = if (enabled) colors.onBrand else colors.textSecondary
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .clip(AeShapes.card)
+            .background(if (enabled) colors.brand else colors.border)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Icon(painterResource(R.drawable.ic_qr), contentDescription = null, tint = foreground, modifier = Modifier.size(22.dp))
+        Text(
+            "Scan QR code on the battery pack",
+            color = foreground,
+            style = AeTheme.type.bodyLarge.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun Message(
+    text: String,
+    isError: Boolean = false,
+    busy: Boolean = false,
+    actionLabel: String = "OK",
+    onAction: (() -> Unit)? = null,
+) {
     val colors = AeTheme.colors
     Row(
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
             .fillMaxWidth()
             .clip(AeShapes.card)
             .background(if (isError) colors.errorBg else colors.surface)
             .border(1.dp, if (isError) colors.errorBorder else colors.border, AeShapes.card)
-            .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = 16.dp, end = if (onAction != null) 4.dp else 16.dp, top = 6.dp, bottom = 6.dp),
     ) {
+        if (busy) {
+            CircularProgressIndicator(Modifier.size(16.dp), color = colors.brand, strokeWidth = 2.dp)
+        }
         Text(
             text,
             style = AeTheme.type.small,
@@ -440,8 +633,8 @@ private fun Message(text: String, isError: Boolean, onDismiss: (() -> Unit)? = n
                 .weight(1f)
                 .padding(vertical = 6.dp),
         )
-        if (onDismiss != null) {
-            TextButton(onClick = onDismiss) { Text("OK", color = if (isError) colors.error else colors.brand) }
+        if (onAction != null) {
+            TextButton(onClick = onAction) { Text(actionLabel, color = if (isError) colors.error else colors.brand) }
         }
     }
 }

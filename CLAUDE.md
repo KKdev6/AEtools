@@ -25,6 +25,7 @@ Owner: Anant Energies (tagline "Empowering the future").
 - minSdk 26, compile/target SDK = the latest stable the installed Android Studio offers.
 - Coroutines + Flow for all BLE and polling work. ViewModels expose `StateFlow`.
 - Jetpack DataStore (Preferences) for settings.
+- Google code scanner (`com.google.android.gms:play-services-code-scanner`) for QR scanning. It uses Google Play services' own scanner UI, so the app needs no camera permission.
 - Android's built-in BLE APIs (`BluetoothLeScanner`, `BluetoothGatt`); no third-party BLE library.
 - Unit tests: JUnit (JVM tests under `src/test`), no device needed.
 - Fonts: IBM Plex Sans, IBM Plex Mono and Roboto Mono Bold (all SIL Open Font License), bundled in `res/font`.
@@ -38,6 +39,7 @@ drivers/jbd/   JbdDriver (request/response queue, polling), JbdFrame (encode/dec
 drivers/demo/  DemoBmsDriver (simulated pack, no Bluetooth; debug source set only)
 ble/           BleScanner, BleConnection (GATT wrapper: connects to the services a driver names, writes bytes, streams notification chunks; knows nothing about any brand)
 data/          SettingsRepository (DataStore), BmsRepository (picks driver, runs polling)
+qr/            QrScanner (Google code scanner), MacAddress (pure: finds the BMS address in a QR code's text)
 ```
 
 - `BmsSnapshot` is brand-neutral: pack voltage (V), current (A, + = charging, − = discharging), power (W, computed), SOC (%), cycle count, cell voltages (list, V), balancing cells (set of indices), temperatures (list of labelled readings, °C), charge MOS on/off, discharge MOS on/off, heater state (nullable, unknown if the BMS doesn't report it), active protections (list of enum values), cell count, timestamp.
@@ -124,6 +126,7 @@ Unit tests must cover: these three frames, the same frames split into 20-byte ch
 - Show the SOC **percentage only**. Never display Ah capacity or a "time left" estimate anywhere.
 - Read-only: no writing of BMS parameters, ever.
 - Cell count comes from the BMS (10–24), never hard-coded.
+- Phones only for now. Don't build tablet-specific layouts yet, but avoid fixed pixel widths so a tablet layout can be added later.
 - Colour limits from the DB24SA08 datasheet: cell range 2.30–3.75 V; balancing starts at 3.30 V with a spread over 15 mV.
 - Temperature colours (owner decision): above 45 °C orange, above 50 °C red, judged in °C whatever unit is displayed.
 
@@ -133,7 +136,7 @@ Reference mockup (owner can open it): https://claude.ai/artifact/KTUwenqcppsFq8o
 
 Bottom navigation with three tabs: **Dashboard** (gauge icon), **Cells** (bar-chart icon), **Devices** (Bluetooth icon). Settings opens from a gear button at the top right of the Dashboard.
 
-1. **Connect / Devices.** Title "Connect to BMS", a short hint ("Keep your phone within a few metres of the battery. The BMS sleeps after a minute with no current, so wake it by connecting a load or charger if it doesn't show up."), Anant Energies logo (AE mark + wordmark) at the top. Live scan list: device name, MAC (partly masked), signal strength in dBm; a BMS the app recognises (advertises the JBD service or has a known JBD-style name) gets a highlighted border and "JBD service found". Other devices are labelled "Not recognised" but can still be tapped, with a confirmation, so an unexpected board can be diagnosed; devices with no name are hidden behind a toggle. Stop/scan button. At the bottom, in debug builds only, a "No BMS nearby?" card with a **Start demo mode** button.
+1. **Connect / Devices.** Title "Connect to BMS", a short hint ("Keep your phone within a few metres of the battery. The BMS sleeps after a minute with no current, so wake it by connecting a load or charger if it doesn't show up."), Anant Energies logo (AE mark + wordmark) at the top. Live scan list: device name, MAC (partly masked), signal strength in dBm; a BMS the app recognises (advertises the JBD service or has a known JBD-style name) gets a highlighted border and "JBD service found". Other devices are labelled "Not recognised" but can still be tapped, with a confirmation, so an unexpected board can be diagnosed; devices with no name are hidden behind a toggle. Stop/scan button. A prominent **Scan QR code on the battery pack** button above the list (see "QR connect" below). At the bottom, in debug builds only, a "No BMS nearby?" card with a **Start demo mode** button.
 2. **Dashboard.** Header: AE mark, "DB24SA08 · 16S" (model and cell count), status line "Connected · −62 dBm · updated 1 s ago", gear button. Then:
    - **Battery card:** header row "Battery" with a status pill on the right (Charging / Discharging / Idle). Body: SOC ring (brand cyan) with the big percentage and "State of charge" inside; beside it a list of Voltage, Current (orange when discharging), Power.
    - Below that, three cards that share the remaining height equally: **Cells** (highest cell #n in orange, lowest #n in blue, spread in mV, "16 cells · 3 balancing ›", tapping opens Cells), **Temperatures** (each sensor), **Status** ("No protections active" or the active protection messages, chips: Charge MOS on/off, Discharge MOS on/off, Heater on/off when known, cycle count). Values in the Cells and Temperatures cards are vertically centred under the title.
@@ -145,6 +148,18 @@ Bottom navigation with three tabs: **Dashboard** (gauge icon), **Cells** (bar-ch
    - About: App version, then the ANANT ENERGIES wordmark with "Empowering the future" directly underneath (4 dp gap), white in the dark theme and black in the light theme.
 
 Behaviour: poll 0x03 then 0x04 every refresh interval while a screen is visible; auto-reconnect with backoff when the link drops and show "Reconnecting…"; remember the last device and auto-connect if enabled. Ask for permissions properly: Android 12+ `BLUETOOTH_SCAN` (with `neverForLocation`) and `BLUETOOTH_CONNECT`; Android 8–11 `ACCESS_FINE_LOCATION`. Handle "Bluetooth is off" with a clear prompt.
+
+## QR connect
+
+Each battery pack has a QR label stuck on it that contains its BMS's Bluetooth MAC address. The labels come with the BMS; no sample has been captured yet. The **Scan QR code on the battery pack** button opens the Google code scanner. When a code is read:
+
+1. Extract the MAC: accept `A4:C1:38:12:34:56`, `A4-C1-38-12-34-56`, `a4c138123456`, or a URL or text that contains one of those. Normalise it to upper case with colons. If no valid MAC is found, show "This QR code doesn't contain a BMS address" and stay on the Connect screen.
+2. Run a short BLE scan (up to 10 s) filtered to that exact address, so we know the BMS is awake and in range. If it isn't found, show "BMS not found. Make sure it's nearby." with a Retry button.
+3. When found, connect straight away with the matching driver, save it as the remembered device (so auto-connect uses it next time), and open the Dashboard.
+
+Put the MAC parsing in a pure function with unit tests for every accepted format and for invalid input. Bluetooth permissions and "Bluetooth is off" handling are the same as for a normal scan.
+
+In debug builds, a QR code containing the simulated board's address (`SI:MU:LA:TE:D0:01`) connects to the simulated JBD board, so the whole QR flow can be tested without hardware.
 
 ## Visual design
 
@@ -176,9 +191,10 @@ A MOS that is off is shown as a neutral grey chip, not red. The full token set, 
 
 1. **Skeleton + demo.** Theme (both palettes, fonts, shapes), navigation, all four screens fed by `DemoBmsDriver`, settings saved in DataStore. Done when the app runs on a phone or emulator in demo mode and every screen matches the description.
 2. **JBD parser.** `JbdFrame` encode/decode, chunk reassembly, `JbdParser` to `BmsSnapshot`, with all unit tests above passing.
-3. **Bluetooth.** Permissions, scanning, recognising JBD, connecting, notifications, the request/response queue, polling, reconnect. Add a debug screen (hidden behind 5 taps on the app version) that shows raw TX/RX hex and discovered UUIDs, so we can diagnose the real board.
+3. **Bluetooth.** Permissions, scanning, recognising JBD, connecting, notifications, the request/response queue, polling, reconnect, and QR connect. Add a debug screen (hidden behind 5 taps on the app version) that shows raw TX/RX hex and discovered UUIDs, so we can diagnose the real board.
    - Status: built and tested without hardware. Debug builds list a **simulated JBD board** in the scan (`drivers/sim/`, debug source set) that answers with real JBD frames over a fake link; long-press its banner for faults (dropped/corrupt replies, link drop, silent BMS, protections).
    - Still to confirm on the real DB24SA08: GATT UUIDs and advertised name, byte layout of 0x03/0x04, what 0x05 returns (shown as the model), which temperature index is the board/MOS sensor, heater state.
+   - QR connect: built (added to the spec after the first Milestone 3 commit). The manifest asks Google Play services to download its scanner at install time. Tried on the emulator up to the scanner opening and closing; what happens after a real scan is still to try on a phone. Debug builds also accept a QR code with the simulated board's address.
 4. **Polish.** Auto-connect, Bluetooth-off and permission-denied states, empty and error states, app icon from the AE mark.
    - Done early: app icon, Bluetooth-off / Location-off / permission prompts, status line that shortens on narrow phones, release signing setup.
 

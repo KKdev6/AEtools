@@ -85,6 +85,10 @@ object DevTools {
 
     fun isSimulated(address: String) = address == SimulatedJbdBoard.ADDRESS
 
+    /** The simulated board's address if a scanned QR code contains it, so the QR flow can be tested without hardware. */
+    fun simulatedAddressIn(qrText: String): String? =
+        SimulatedJbdBoard.ADDRESS.takeIf { qrText.contains(it, ignoreCase = true) }
+
     /** The "No BMS nearby?" card at the bottom of the Devices screen. */
     @Composable
     fun DemoEntryCard(onStartDemo: () -> Unit, modifier: Modifier = Modifier) {

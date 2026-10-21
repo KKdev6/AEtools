@@ -10,6 +10,9 @@ import com.anantenergies.bms.domain.Advertisement
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration
 
 class ScanFailedException(val errorCode: Int) : Exception("Scan failed ($errorCode)")
 
@@ -41,6 +44,15 @@ class BleScanner(private val context: Context) {
         scanner.startScan(null, settings, callback)
         // Stopping fails if Bluetooth was turned off meanwhile; nothing to do then.
         awaitClose { runCatching { scanner.stopScan(callback) } }
+    }
+
+    /**
+     * Scans until [address] is heard, which shows the device is awake and in range, or returns null
+     * after [timeout]. Matched here rather than with a ScanFilter: on newer Android versions an
+     * address filter is tied to one address type, and we don't know which one a board uses.
+     */
+    suspend fun find(address: String, timeout: Duration): Advertisement? = withTimeoutOrNull(timeout) {
+        scan().first { it.address.equals(address, ignoreCase = true) }
     }
 
     private fun ScanResult.toAdvertisement() = Advertisement(

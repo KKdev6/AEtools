@@ -24,6 +24,8 @@ object DevTools {
 
     fun isSimulated(address: String) = false
 
+    fun simulatedAddressIn(qrText: String): String? = null
+
     @Composable
     fun DemoEntryCard(onStartDemo: () -> Unit, modifier: Modifier = Modifier) {
     }
