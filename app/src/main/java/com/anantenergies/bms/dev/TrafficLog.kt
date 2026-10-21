@@ -43,7 +43,19 @@ class TrafficLog(
 
     private fun add(kind: Kind, text: String) {
         val entry = Entry(clock(), kind, text)
-        _entries.update { (it + entry).takeLast(capacity) }
+        _entries.update { entries ->
+            val all = entries + entry
+            if (all.size <= capacity) all else all.withoutOldestTraffic()
+        }
+    }
+
+    /**
+     * Drops the oldest TX/RX entry, so notes from connecting (advertisement, services, hardware
+     * name, errors) outlive the polling traffic in a long session.
+     */
+    private fun List<Entry>.withoutOldestTraffic(): List<Entry> {
+        val oldest = indexOfFirst { it.kind == Kind.TX || it.kind == Kind.RX }.coerceAtLeast(0)
+        return filterIndexed { index, _ -> index != oldest }
     }
 }
 

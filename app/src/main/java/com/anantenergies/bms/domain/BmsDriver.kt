@@ -58,6 +58,8 @@ data class Advertisement(
     val rssi: Int,
     /** Advertised service UUIDs, lower case, full 128-bit form. */
     val serviceUuids: List<String>,
+    /** The whole advertisement as hex, for the Bluetooth log; null when not captured. */
+    val raw: String? = null,
 )
 
 /** A BMS the app can connect to. [brandId] is null until a brand has recognised it. */

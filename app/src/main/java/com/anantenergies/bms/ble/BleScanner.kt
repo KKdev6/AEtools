@@ -6,6 +6,7 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import com.anantenergies.bms.dev.toHex
 import com.anantenergies.bms.domain.Advertisement
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -60,5 +61,7 @@ class BleScanner(private val context: Context) {
         address = device.address,
         rssi = rssi,
         serviceUuids = scanRecord?.serviceUuids?.map { it.uuid.toString().lowercase() }.orEmpty(),
+        // Without the zero padding after the last field.
+        raw = scanRecord?.bytes?.let { bytes -> bytes.copyOf(bytes.indexOfLast { it != 0.toByte() } + 1).toHex() },
     )
 }

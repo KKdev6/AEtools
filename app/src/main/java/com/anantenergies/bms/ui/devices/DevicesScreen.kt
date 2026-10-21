@@ -60,6 +60,7 @@ import com.anantenergies.bms.ble.BleScanner
 import com.anantenergies.bms.ble.BluetoothAvailability
 import com.anantenergies.bms.ble.BluetoothStatus
 import com.anantenergies.bms.ble.ScanFailedException
+import com.anantenergies.bms.ble.shortLabel
 import com.anantenergies.bms.data.BmsRepository
 import com.anantenergies.bms.data.ConnectStatus
 import com.anantenergies.bms.dev.DevTools
@@ -88,6 +89,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.UUID
 import kotlin.time.Duration.Companion.seconds
 
 /** A device heard in the scan. [brand] is the brand that recognised it, if any. */
@@ -202,7 +204,7 @@ class DevicesViewModel(
 
     fun connect(device: FoundDevice) {
         dismissQr()
-        startConnect(BmsDevice(device.name, device.advertisement.address, device.brand?.id))
+        startConnect(BmsDevice(device.name, device.advertisement.address, device.brand?.id), device.advertisement)
     }
 
     /** Call once the Dashboard has opened for the awaited device, or its connection failed. */
@@ -252,9 +254,10 @@ class DevicesViewModel(
         stopAwaiting()
     }
 
-    private fun startConnect(device: BmsDevice) {
+    private fun startConnect(device: BmsDevice, ad: Advertisement) {
         // Android connects more reliably with no scan running.
         stopScan()
+        DevTools.trafficLog?.info(describe(ad))
         awaiting.value = device.address
         bms.connect(device)
     }
@@ -285,8 +288,21 @@ class DevicesViewModel(
             }
             qr.value = null
             val brand = brands.firstOrNull { it.matches(ad) }
-            startConnect(BmsDevice(ad.name?.takeIf { it.isNotBlank() } ?: "BMS", ad.address, brand?.id))
+            startConnect(BmsDevice(ad.name?.takeIf { it.isNotBlank() } ?: "BMS", ad.address, brand?.id), ad)
         }
+    }
+
+    /** What the board advertised, for the Bluetooth log: how a brand recognises it. */
+    private fun describe(ad: Advertisement): String {
+        val services = ad.serviceUuids.map { uuid -> runCatching { UUID.fromString(uuid).shortLabel() }.getOrDefault(uuid) }
+        return listOf(
+            "Connecting to ${ad.address}",
+            "Advertised name: ${ad.name ?: "(none)"}",
+            "Signal: ${ad.rssi} dBm",
+            "Advertised services: ${services.joinToString().ifEmpty { "(none)" }}",
+            "Recognised as: ${brands.firstOrNull { it.matches(ad) }?.name ?: "not recognised"}",
+            "Raw advertisement: ${ad.raw ?: "(not captured)"}",
+        ).joinToString("\n")
     }
 
     private fun scanFailedMessage(e: Exception) = if (e is ScanFailedException) {
