@@ -1,6 +1,8 @@
 package com.anantenergies.bms.qr
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import com.google.android.gms.common.moduleinstall.InstallStatusListener
 import com.google.android.gms.common.moduleinstall.ModuleInstall
 import com.google.android.gms.common.moduleinstall.ModuleInstallRequest
@@ -77,6 +79,8 @@ object QrScanner {
     private suspend fun ensureInstalled(context: Context, scanner: GmsBarcodeScanner, onDownloading: () -> Unit): Boolean {
         val modules = ModuleInstall.getClient(context)
         if (modules.areModulesAvailable(scanner).await().areModulesAvailable()) return true
+        // Offline, the download would only sit waiting; say so now so the user can use the list instead.
+        if (!hasInternet(context)) return false
 
         onDownloading()
         return withTimeoutOrNull(DOWNLOAD_TIMEOUT) {
@@ -98,6 +102,12 @@ object QrScanner {
                     .addOnFailureListener { finish(false) }
             }
         } ?: false
+    }
+
+    private fun hasInternet(context: Context): Boolean {
+        val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return false
+        val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     private fun <T> CancellableContinuation<T>.resumeOnce(value: T) {

@@ -127,6 +127,7 @@ Unit tests must cover: these three frames, the same frames split into 20-byte ch
 - Read-only: no writing of BMS parameters, ever.
 - Cell count comes from the BMS (10–24), never hard-coded.
 - Phones only for now. Don't build tablet-specific layouts yet, but avoid fixed pixel widths so a tablet layout can be added later.
+- Internet (owner decision): keep the INTERNET permission that Google's code scanner library adds for its usage statistics. The app must work fully offline: scanning the list and connecting over Bluetooth never need the internet. Only the QR scanner's one-time download by Google Play services does, and offline the app says so straight away and points to the list.
 - Colour limits from the DB24SA08 datasheet: cell range 2.30–3.75 V; balancing starts at 3.30 V with a spread over 15 mV.
 - Temperature colours (owner decision): above 45 °C orange, above 50 °C red, judged in °C whatever unit is displayed.
 

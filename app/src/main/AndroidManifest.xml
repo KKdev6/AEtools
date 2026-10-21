@@ -24,6 +24,12 @@
         android:name="android.permission.ACCESS_FINE_LOCATION"
         android:maxSdkVersion="30" />
 
+    <!-- Google's code scanner library adds these for its usage statistics (owner decision: keep).
+         The app also checks for a network before waiting on a first-time scanner download.
+         Nothing else uses the internet; the Bluetooth list works offline. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:name=".AeApp"
         android:allowBackup="true"
