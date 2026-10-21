@@ -60,7 +60,6 @@ import kotlinx.coroutines.launch
 data class SettingsState(
     val settings: Settings = Settings(),
     val device: BmsDevice? = null,
-    val isDemo: Boolean = false,
     val link: LinkState = LinkState.Disconnected,
     val info: BmsInfo? = null,
     val cellCount: Int? = null,
@@ -70,7 +69,7 @@ class SettingsViewModel(private val settings: SettingsRepository, private val bm
     val state: StateFlow<SettingsState> = combine(
         settings.settings, bms.session, bms.linkState, bms.info, bms.snapshot,
     ) { prefs, session, link, info, snapshot ->
-        SettingsState(prefs, session?.device, session?.isDemo == true, link, info, snapshot?.cellCount)
+        SettingsState(prefs, session?.device, link, info, snapshot?.cellCount)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsState())
 
     fun setAutoConnect(on: Boolean) {
@@ -246,7 +245,7 @@ private fun ThisBms(state: SettingsState, onDisconnect: () -> Unit, onForget: ()
     when {
         device != null -> {
             val details = listOfNotNull(
-                if (state.isDemo) "Simulated" else Format.maskedAddress(device.address),
+                Format.maskedAddress(device.address),
                 state.info?.model,
                 state.cellCount?.let { "${it}S" },
             ).joinToString(" · ")
@@ -267,8 +266,8 @@ private fun ThisBms(state: SettingsState, onDisconnect: () -> Unit, onForget: ()
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp)) {
                 OutlineButton("Disconnect", onClick = onDisconnect, modifier = Modifier.weight(1f))
-                // The demo pack is never remembered, so there's nothing to forget.
-                if (!state.isDemo) {
+                // Only a remembered device can be forgotten; the demo pack never is.
+                if (remembered?.address == device.address) {
                     ForgetButton(onForget, Modifier.weight(1f))
                 }
             }

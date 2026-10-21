@@ -126,7 +126,9 @@ object DevTools {
                         modifier = Modifier.weight(1f),
                     )
                 }
-                session?.takeIf { it.isDemo }?.let { ScenarioRow(it.device.address, onDisconnect = bms::disconnect) }
+                // Always shown, so a scenario like "Out of range" can be switched back while disconnected.
+                SimulatorRow(connected = session?.device?.address?.let(::isSimulated) == true, onDisconnect = bms::disconnect)
+                if (session?.device?.address == controller.device.address) DemoRow(onDisconnect = bms::disconnect)
 
                 Spacer(Modifier.height(8.dp))
                 SectionLabel("Bluetooth log · ${entries.size} entries")
@@ -171,33 +173,36 @@ object DevTools {
         Text(text, style = AeTheme.type.sectionLabel, color = AeTheme.colors.textSecondary)
     }
 
-    /** The scenario of the connected simulated board or demo pack, with a picker. */
     @Composable
-    private fun ScenarioRow(address: String, onDisconnect: () -> Unit) {
-        if (isSimulated(address)) {
-            val scenario by board.scenario.collectAsStateWithLifecycle()
-            ScenarioPicker(
-                name = "Simulated JBD board",
-                labels = SimScenario.entries.map { it.label },
-                selected = scenario.ordinal,
-                onSelect = { board.select(SimScenario.entries[it]) },
-                onDisconnect = onDisconnect,
-            )
-        } else {
-            val scenario by controller.scenario.collectAsStateWithLifecycle()
-            ScenarioPicker(
-                name = "Demo pack",
-                labels = DemoScenario.entries.map { it.label },
-                selected = scenario.ordinal,
-                onSelect = { controller.select(DemoScenario.entries[it]) },
-                onDisconnect = onDisconnect,
-            )
-        }
+    private fun SimulatorRow(connected: Boolean, onDisconnect: () -> Unit) {
+        val scenario by board.scenario.collectAsStateWithLifecycle()
+        ScenarioPicker(
+            name = "Simulated JBD board",
+            connected = connected,
+            labels = SimScenario.entries.map { it.label },
+            selected = scenario.ordinal,
+            onSelect = { board.select(SimScenario.entries[it]) },
+            onDisconnect = onDisconnect,
+        )
+    }
+
+    @Composable
+    private fun DemoRow(onDisconnect: () -> Unit) {
+        val scenario by controller.scenario.collectAsStateWithLifecycle()
+        ScenarioPicker(
+            name = "Demo pack",
+            connected = true,
+            labels = DemoScenario.entries.map { it.label },
+            selected = scenario.ordinal,
+            onSelect = { controller.select(DemoScenario.entries[it]) },
+            onDisconnect = onDisconnect,
+        )
     }
 
     @Composable
     private fun ScenarioPicker(
         name: String,
+        connected: Boolean,
         labels: List<String>,
         selected: Int,
         onSelect: (Int) -> Unit,
@@ -208,7 +213,7 @@ object DevTools {
 
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
-                Text("Connected: $name", style = AeTheme.type.bodyLarge.copy(fontWeight = FontWeight.SemiBold))
+                Text(if (connected) "$name · connected" else name, style = AeTheme.type.bodyLarge.copy(fontWeight = FontWeight.SemiBold))
                 Text("Scenario: ${labels[selected]}", style = AeTheme.type.small, color = colors.textSecondary)
             }
             OutlineButton("Change", onClick = { picking = true }, height = 36.dp)
@@ -248,10 +253,12 @@ object DevTools {
                 },
                 confirmButton = { TextButton(onClick = { picking = false }) { Text("Close", color = colors.brand) } },
                 dismissButton = {
-                    TextButton(onClick = {
-                        picking = false
-                        onDisconnect()
-                    }) { Text("Disconnect", color = colors.discharge) }
+                    if (connected) {
+                        TextButton(onClick = {
+                            picking = false
+                            onDisconnect()
+                        }) { Text("Disconnect", color = colors.discharge) }
+                    }
                 },
                 containerColor = colors.surface,
                 titleContentColor = colors.textPrimary,

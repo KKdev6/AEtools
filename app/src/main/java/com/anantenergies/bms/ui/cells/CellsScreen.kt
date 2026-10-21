@@ -50,7 +50,7 @@ import kotlin.math.max
 
 @Composable
 fun CellsScreen(onBack: () -> Unit, onFindBms: () -> Unit) {
-    val viewModel = appViewModel { LiveViewModel(it.bms, it.settings) }
+    val viewModel = appViewModel { LiveViewModel(it.bms, it.settings, it.bluetooth) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snapshot = state.snapshot
     val stats = snapshot?.let { CellStats.of(it.cellVoltages) }

@@ -150,7 +150,7 @@ Bottom navigation with three tabs: **Dashboard** (gauge icon), **Cells** (bar-ch
    - This BMS: name, MAC, model, connected state; Disconnect and Forget this BMS buttons.
    - About: App version, then the ANANT ENERGIES wordmark with "Empowering the future" directly underneath (4 dp gap), white in the dark theme and black in the light theme.
 
-Behaviour: poll 0x03 then 0x04 every refresh interval while a screen is visible; auto-reconnect with backoff when the link drops and show "Reconnecting…"; remember the last device and auto-connect if enabled. Ask for permissions properly: Android 12+ `BLUETOOTH_SCAN` (with `neverForLocation`) and `BLUETOOTH_CONNECT`; Android 8–11 `ACCESS_FINE_LOCATION`. Handle "Bluetooth is off" with a clear prompt.
+Behaviour: poll 0x03 then 0x04 every refresh interval while a screen is visible; auto-reconnect with backoff when the link drops and show "Reconnecting…"; remember the last device and auto-connect if enabled. Auto-connect runs only on a fresh launch, not when the app returns from the background (owner decision). While it works, the Dashboard shows the approved states from mockup row 5: connecting, couldn't reach (Try again), and Bluetooth off or not allowed (it continues by itself once Bluetooth is ready), each with Choose another BMS. Ask for permissions properly: Android 12+ `BLUETOOTH_SCAN` (with `neverForLocation`) and `BLUETOOTH_CONNECT`; Android 8–11 `ACCESS_FINE_LOCATION`. Handle "Bluetooth is off" with a clear prompt.
 
 ## QR connect
 
@@ -200,6 +200,7 @@ A MOS that is off is shown as a neutral grey chip, not red. The full token set, 
    - QR connect: built (added to the spec after the first Milestone 3 commit). The manifest asks Google Play services to download its scanner at install time. Tried on the emulator up to the scanner opening and closing; what happens after a real scan is still to try on a phone. Debug builds also accept a QR code with the simulated board's address.
 4. **Polish.** Auto-connect, Bluetooth-off and permission-denied states, empty and error states, app icon from the AE mark.
    - Done early: app icon, Bluetooth-off / Location-off / permission prompts, status line that shortens on narrow phones, release signing setup.
+   - Auto-connect: built and tried on the emulator with the simulated board (debug builds remember it; its "Out of range" scenario tests the couldn't-reach state). Not yet tried with the real board.
 
 Future (not now): JK BMS driver (JK BD series boards), data logging/export, multiple saved packs.
 

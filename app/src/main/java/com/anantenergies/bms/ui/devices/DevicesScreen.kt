@@ -1,13 +1,6 @@
 package com.anantenergies.bms.ui.devices
 
-import android.bluetooth.BluetoothAdapter
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import androidx.activity.compose.LocalActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,12 +27,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.buildAnnotatedString
@@ -49,7 +40,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -73,6 +63,7 @@ import com.anantenergies.bms.qr.QrScanResult
 import com.anantenergies.bms.qr.QrScanner
 import com.anantenergies.bms.ui.Format
 import com.anantenergies.bms.ui.appViewModel
+import com.anantenergies.bms.ui.rememberBluetoothFix
 import com.anantenergies.bms.ui.components.AeCard
 import com.anantenergies.bms.ui.components.AeMark
 import com.anantenergies.bms.ui.components.OutlineButton
@@ -526,61 +517,11 @@ private fun ScanRow(scanning: Boolean, onScan: () -> Unit, onStop: () -> Unit) {
 /** Explains what's stopping the app from scanning, with a button that fixes it. */
 @Composable
 private fun BluetoothPrompt(status: BluetoothStatus, permissions: Array<String>, onChanged: () -> Unit) {
-    val context = LocalContext.current
-    val activity = LocalActivity.current
-    var deniedForGood by rememberSaveable { mutableStateOf(false) }
-
-    val askPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        if (result.values.any { !it } && activity != null) {
-            // Android stops showing the prompt after repeated denials; then only Settings can grant it.
-            deniedForGood = permissions.none { ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }
-        }
-        onChanged()
-    }
-    val turnOnBluetooth = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { onChanged() }
-
-    val (title, message, action) = when (status) {
-        BluetoothStatus.NEEDS_PERMISSION -> Triple(
-            "Allow Bluetooth access",
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                "AEtools needs permission to find and connect to your BMS over Bluetooth."
-            } else {
-                "This Android version only lets apps find Bluetooth devices with location permission. AEtools doesn't use your location."
-            },
-            if (deniedForGood) {
-                "Open app settings" to {
-                    context.startActivity(
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
-                    )
-                }
-            } else {
-                "Allow" to { askPermissions.launch(permissions) }
-            },
-        )
-        BluetoothStatus.BLUETOOTH_OFF -> Triple(
-            "Bluetooth is off",
-            "Turn on Bluetooth to find your BMS.",
-            "Turn on Bluetooth" to { turnOnBluetooth.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)) },
-        )
-        BluetoothStatus.LOCATION_OFF -> Triple(
-            "Location is off",
-            "On this Android version, Bluetooth scanning only works with Location switched on.",
-            "Open location settings" to { context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) },
-        )
-        BluetoothStatus.UNSUPPORTED -> Triple(
-            "Bluetooth LE not available",
-            "This phone doesn't support Bluetooth Low Energy, which the BMS uses.",
-            null,
-        )
-        BluetoothStatus.READY -> return
-    }
-
+    val fix = rememberBluetoothFix(status, permissions, onChanged) ?: return
     AeCard {
-        Text(title, style = AeTheme.type.bodyLarge.copy(fontWeight = FontWeight.SemiBold))
-        Text(message, style = AeTheme.type.small, color = AeTheme.colors.textSecondary)
-        if (action != null) {
-            OutlineButton(action.first, onClick = action.second, modifier = Modifier.fillMaxWidth())
-        }
+        Text(fix.title, style = AeTheme.type.bodyLarge.copy(fontWeight = FontWeight.SemiBold))
+        Text(fix.message, style = AeTheme.type.small, color = AeTheme.colors.textSecondary)
+        fix.actionLabel?.let { OutlineButton(it, onClick = fix.action, modifier = Modifier.fillMaxWidth()) }
     }
 }
 

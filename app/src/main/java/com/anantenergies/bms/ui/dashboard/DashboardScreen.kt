@@ -1,5 +1,6 @@
 package com.anantenergies.bms.ui.dashboard
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,7 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -40,18 +43,24 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.anantenergies.bms.R
+import com.anantenergies.bms.ble.BluetoothStatus
+import com.anantenergies.bms.data.ConnectStatus
 import com.anantenergies.bms.data.TempUnit
 import com.anantenergies.bms.domain.BmsSnapshot
 import com.anantenergies.bms.domain.CellStats
 import com.anantenergies.bms.domain.CurrentFlow
+import com.anantenergies.bms.domain.LinkState
 import com.anantenergies.bms.ui.Format
 import com.anantenergies.bms.ui.LiveState
 import com.anantenergies.bms.ui.LiveViewModel
@@ -64,12 +73,14 @@ import com.anantenergies.bms.ui.components.EmptyState
 import com.anantenergies.bms.ui.components.FittingText
 import com.anantenergies.bms.ui.components.IconPill
 import com.anantenergies.bms.ui.components.OutlineButton
+import com.anantenergies.bms.ui.components.PrimaryButton
 import com.anantenergies.bms.ui.components.StatusChip
 import com.anantenergies.bms.ui.components.StatusDot
 import com.anantenergies.bms.ui.components.cellColor
 import com.anantenergies.bms.ui.components.temperatureColor
 import com.anantenergies.bms.ui.linkLabel
 import com.anantenergies.bms.ui.linkStatusLines
+import com.anantenergies.bms.ui.rememberBluetoothFix
 import com.anantenergies.bms.ui.rememberNow
 import com.anantenergies.bms.ui.theme.AeShapes
 import com.anantenergies.bms.ui.theme.AeTheme
@@ -77,13 +88,55 @@ import com.anantenergies.bms.ui.theme.PlexMono
 
 @Composable
 fun DashboardScreen(onOpenCells: () -> Unit, onOpenSettings: () -> Unit, onFindBms: () -> Unit) {
-    val viewModel = appViewModel { LiveViewModel(it.bms, it.settings) }
+    val viewModel = appViewModel { LiveViewModel(it.bms, it.settings, it.bluetooth) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snapshot = state.snapshot
+    val connect = state.connect
+
+    // Back from app settings, a permission may have been granted.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshBluetooth() }
+
+    val chooseAnother = {
+        viewModel.stopConnecting()
+        onFindBms()
+    }
 
     Column(Modifier.fillMaxSize()) {
         Header(state, onOpenSettings)
         when {
+            connect is ConnectStatus.WaitingForBluetooth -> {
+                val fix = rememberBluetoothFix(state.bluetooth, viewModel.permissions, viewModel::refreshBluetooth)
+                if (fix == null) {
+                    ConnectingMessage(ConnectStatus.Connecting(connect.device, auto = true), chooseAnother)
+                } else {
+                    ConnectionMessage(
+                        title = fix.title,
+                        message = if (state.bluetooth == BluetoothStatus.BLUETOOTH_OFF) {
+                            "Turn on Bluetooth to connect to ${connect.device.name}."
+                        } else {
+                            fix.message
+                        },
+                        icon = R.drawable.ic_bluetooth,
+                        primary = fix.actionLabel?.let { it to fix.action },
+                        onChooseAnother = chooseAnother,
+                    )
+                }
+            }
+            connect is ConnectStatus.Failed && connect.notSupported -> ConnectionMessage(
+                title = "${connect.device.name} isn't a supported BMS",
+                message = "Pick your BMS from the list, or scan the QR code on the battery pack.",
+                icon = R.drawable.ic_bluetooth_off,
+                onChooseAnother = chooseAnother,
+            )
+            connect is ConnectStatus.Failed -> ConnectionMessage(
+                title = "Couldn't reach ${connect.device.name}",
+                message = "The BMS sleeps after a minute with no current. Wake it by connecting a load or charger, then try again.",
+                icon = R.drawable.ic_bluetooth_off,
+                primary = "Try again" to { viewModel.retry(connect.device) },
+                onChooseAnother = chooseAnother,
+            )
+            // Once the link is up the header says Connected; the first reading follows.
+            connect is ConnectStatus.Connecting && state.link !is LinkState.Connected -> ConnectingMessage(connect, chooseAnother)
             !state.hasSession -> EmptyState(
                 title = "No BMS connected",
                 message = "Connect to your battery from the Devices tab.",
@@ -110,7 +163,8 @@ private fun Header(state: LiveState, onOpenSettings: () -> Unit) {
             snapshot?.let { "${it.cellCount}S" },
         ).joinToString(" · ")
     } else {
-        "Dashboard"
+        // While auto-connect waits or has failed, there's no session yet, but a known BMS.
+        state.connect?.device?.name ?: "Dashboard"
     }
     val (label, dot) = linkLabel(state.link)
     val status = linkStatusLines(state.link, label, snapshot?.timestamp, rememberNow())
@@ -139,6 +193,72 @@ private fun Header(state: LiveState, onOpenSettings: () -> Unit) {
                 .clickable(role = Role.Button, onClick = onOpenSettings),
         ) {
             Icon(painterResource(R.drawable.ic_settings), contentDescription = "Settings", modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun ConnectingMessage(connect: ConnectStatus.Connecting, onChooseAnother: () -> Unit) {
+    ConnectionMessage(
+        title = "Connecting to ${connect.device.name}",
+        detail = Format.maskedAddress(connect.device.address),
+        message = if (connect.auto) {
+            "The BMS you used last. Keep your phone within a few metres of the battery."
+        } else {
+            "Keep your phone within a few metres of the battery."
+        },
+        busy = true,
+        onChooseAnother = onChooseAnother,
+    )
+}
+
+/** Connecting, couldn't reach, or waiting for Bluetooth: one centred message with its actions. */
+@Composable
+private fun ConnectionMessage(
+    title: String,
+    message: String,
+    onChooseAnother: () -> Unit,
+    detail: String? = null,
+    @DrawableRes icon: Int = R.drawable.ic_battery,
+    busy: Boolean = false,
+    primary: Pair<String, () -> Unit>? = null,
+) {
+    val colors = AeTheme.colors
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp, vertical = 24.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(bottom = 8.dp).size(72.dp)) {
+            if (busy) {
+                CircularProgressIndicator(Modifier.fillMaxSize(), color = colors.brand, strokeWidth = 4.dp, trackColor = colors.border)
+                Icon(painterResource(icon), contentDescription = null, tint = colors.brand, modifier = Modifier.size(28.dp))
+            } else {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                        .background(colors.surface)
+                        .border(1.dp, colors.border, CircleShape),
+                ) {
+                    Icon(painterResource(icon), contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(28.dp))
+                }
+            }
+        }
+        Text(title, style = AeTheme.type.headerTitle, textAlign = TextAlign.Center)
+        detail?.let { Text(it, style = AeTheme.type.numberSmall, color = colors.textSecondary) }
+        Text(message, style = AeTheme.type.body, color = colors.textSecondary, textAlign = TextAlign.Center)
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+        ) {
+            primary?.let { (label, action) -> PrimaryButton(label, onClick = action, modifier = Modifier.fillMaxWidth()) }
+            OutlineButton("Choose another BMS", onClick = onChooseAnother, modifier = Modifier.fillMaxWidth())
         }
     }
 }

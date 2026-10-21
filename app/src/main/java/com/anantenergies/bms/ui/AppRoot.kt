@@ -71,7 +71,7 @@ private val Tabs = listOf(
 
 @Composable
 fun AppRoot() {
-    val viewModel = appViewModel { MainViewModel(it.settings) }
+    val viewModel = appViewModel { MainViewModel(it.settings, it.bms, it.bluetooth) }
     val settings by viewModel.settings.collectAsStateWithLifecycle()
 
     val loaded = settings

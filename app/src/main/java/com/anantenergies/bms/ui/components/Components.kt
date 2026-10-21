@@ -240,3 +240,20 @@ fun OutlineButton(
         Text(text, color = contentColor, style = AeTheme.type.body.copy(fontWeight = FontWeight.Medium))
     }
 }
+
+/** A 48 dp tall button filled with the brand colour, for a screen's main action. */
+@Composable
+fun PrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = AeTheme.colors
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .height(48.dp)
+            .clip(AeShapes.small)
+            .background(colors.brand)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp),
+    ) {
+        Text(text, color = colors.onBrand, style = AeTheme.type.bodyLarge.copy(fontWeight = FontWeight.SemiBold))
+    }
+}

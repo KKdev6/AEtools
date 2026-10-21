@@ -35,6 +35,7 @@ enum class SimScenario(val label: String) {
     DROP_REPLIES("Drop some replies"),
     CORRUPT_REPLIES("Corrupt some replies"),
     LINK_DROP("Link drops, then comes back"),
+    OUT_OF_RANGE("Out of range (can't connect)"),
     SILENT("BMS stops answering"),
 }
 
@@ -60,6 +61,7 @@ class SimulatedJbdBoard {
             unreachableUntil = System.currentTimeMillis() + OUT_OF_RANGE_MS
             link?.drop()
         }
+        if (scenario == SimScenario.OUT_OF_RANGE) link?.drop()
     }
 
     /** Routes the simulated address here and everything else to the real Bluetooth stack. */
@@ -67,7 +69,7 @@ class SimulatedJbdBoard {
         if (address == ADDRESS) SimulatedJbdLink(this) else real.create(address, profile)
     }
 
-    internal fun canConnect() = System.currentTimeMillis() >= unreachableUntil
+    internal fun canConnect() = _scenario.value != SimScenario.OUT_OF_RANGE && System.currentTimeMillis() >= unreachableUntil
 
     internal fun attach(link: SimulatedJbdLink) {
         this.link = link
@@ -111,7 +113,7 @@ class SimulatedJbdBoard {
         const val ADDRESS = "SI:MU:LA:TE:D0:01"
 
         val ADVERTISEMENT = Advertisement(
-            name = "JBD-DB24SA08 (simulated)",
+            name = "JBD-DB24SA08-SIM",
             address = ADDRESS,
             rssi = -58,
             serviceUuids = listOf(JbdBrand.PROFILE.service.toString()),

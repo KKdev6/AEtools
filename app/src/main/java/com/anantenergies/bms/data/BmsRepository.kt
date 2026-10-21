@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.getAndUpdate
@@ -35,8 +36,13 @@ class BmsSession(val device: BmsDevice, val driver: BmsDriver, val isDemo: Boole
 sealed interface ConnectStatus {
     val device: BmsDevice
 
-    data class Connecting(override val device: BmsDevice) : ConnectStatus
-    data class Failed(override val device: BmsDevice, val message: String) : ConnectStatus
+    /** [auto] is true for auto-connect on launch. */
+    data class Connecting(override val device: BmsDevice, val auto: Boolean = false) : ConnectStatus
+
+    data class Failed(override val device: BmsDevice, val message: String, val notSupported: Boolean = false) : ConnectStatus
+
+    /** Auto-connect is holding [device] until Bluetooth is switched on (or allowed). */
+    data class WaitingForBluetooth(override val device: BmsDevice) : ConnectStatus
 }
 
 /**
@@ -52,7 +58,7 @@ class BmsRepository(
     /** Every supported brand, in the order they are tried for an unrecognised device. */
     private val brands: List<BmsBrand>,
     private val demo: DemoControl?,
-    /** True for the debug build's simulated board, which is never remembered. */
+    /** True for the debug build's simulated board. */
     private val isSimulated: (address: String) -> Boolean,
 ) {
     private val _session = MutableStateFlow<BmsSession?>(null)
@@ -88,11 +94,11 @@ class BmsRepository(
      * Connects to a scanned or remembered device. A device a brand recognised uses that brand;
      * otherwise each brand is tried until one finds its service on the board.
      */
-    fun connect(device: BmsDevice) {
+    fun connect(device: BmsDevice, auto: Boolean = false) {
         connectJob?.cancel()
         connectJob = scope.launch {
             endSession()
-            _connectStatus.value = ConnectStatus.Connecting(device)
+            _connectStatus.value = ConnectStatus.Connecting(device, auto)
             val candidates = brands.filter { it.id == device.brandId }.ifEmpty { brands }
             for (brand in candidates) {
                 val session = BmsSession(device.copy(brandId = brand.id), brand.create(), isSimulated(device.address))
@@ -100,7 +106,9 @@ class BmsRepository(
                 try {
                     session.driver.connect(session.device)
                     _connectStatus.value = null
-                    if (!session.isDemo) settings.rememberDevice(session.device)
+                    // The demo pack never comes through here, so it's never remembered. The debug
+                    // build's simulated board is, so auto-connect can be tested without hardware.
+                    settings.rememberDevice(session.device)
                     return@launch
                 } catch (e: BmsConnectException.NotSupported) {
                     endSession()
@@ -116,7 +124,34 @@ class BmsRepository(
                     throw e
                 }
             }
-            _connectStatus.value = ConnectStatus.Failed(device, "${device.name} isn't a supported BMS.")
+            _connectStatus.value = ConnectStatus.Failed(device, "${device.name} isn't a supported BMS.", notSupported = true)
+        }
+    }
+
+    /**
+     * Auto-connect, for a fresh launch only (owner decision: not when the app returns from the
+     * background). Connects to the remembered BMS if the setting is on and nothing is connected
+     * or connecting yet; with Bluetooth not ready, holds it until [bluetoothReady].
+     */
+    suspend fun autoConnect(bluetoothReady: Boolean) {
+        val prefs = settings.settings.first()
+        val device = prefs.lastDevice ?: return
+        if (!prefs.autoConnect || _session.value != null || _connectStatus.value != null) return
+        if (bluetoothReady) connect(device, auto = true) else waitForBluetooth(device)
+    }
+
+    /** Holds [device] until [bluetoothReady], e.g. when Bluetooth is off. */
+    fun waitForBluetooth(device: BmsDevice) {
+        connectJob?.cancel()
+        _connectStatus.value = ConnectStatus.WaitingForBluetooth(device)
+    }
+
+    /** Bluetooth is usable now: connects to the device [waitForBluetooth] is holding, if any. */
+    fun bluetoothReady() {
+        val waiting = _connectStatus.value as? ConnectStatus.WaitingForBluetooth ?: return
+        // Several screens may report the same change; only the first one connects.
+        if (_connectStatus.compareAndSet(waiting, ConnectStatus.Connecting(waiting.device, auto = true))) {
+            connect(waiting.device, auto = true)
         }
     }
 
