@@ -57,7 +57,7 @@ private object Routes {
     const val DEVICES = "devices"
     const val SETTINGS = "settings"
 
-    /** Bluetooth log; debug builds only. */
+    /** Developer tools: simulated board, demo mode, Bluetooth log. Debug builds only. */
     const val DEBUG = "debug"
 }
 
@@ -71,9 +71,8 @@ private val Tabs = listOf(
 
 @Composable
 fun AppRoot() {
-    val viewModel = appViewModel { MainViewModel(it.settings, it.bms) }
+    val viewModel = appViewModel { MainViewModel(it.settings) }
     val settings by viewModel.settings.collectAsStateWithLifecycle()
-    val demoAddress by viewModel.demoAddress.collectAsStateWithLifecycle()
 
     val loaded = settings
     if (loaded == null) {
@@ -99,12 +98,6 @@ fun AppRoot() {
                 .background(AeTheme.colors.background)
                 .statusBarsPadding(),
         ) {
-            demoAddress?.let { address ->
-                DevTools.DemoBanner(address, onExitDemo = {
-                    viewModel.exitDemo()
-                    nav.showTab(Routes.DEVICES)
-                })
-            }
             NavHost(nav, startDestination = start, modifier = Modifier.weight(1f)) {
                 composable(Routes.DASHBOARD) {
                     DashboardScreen(
@@ -123,15 +116,17 @@ fun AppRoot() {
                     SettingsScreen(
                         onBack = { nav.popBackStack() },
                         onDisconnected = { nav.showTab(Routes.DEVICES) },
-                        onOpenDebug = if (DevTools.hasTrafficScreen) {
+                        onOpenDebug = if (DevTools.hasToolsScreen) {
                             { nav.navigate(Routes.DEBUG) { launchSingleTop = true } }
                         } else {
                             null
                         },
                     )
                 }
-                if (DevTools.hasTrafficScreen) {
-                    composable(Routes.DEBUG) { DevTools.TrafficScreen(onBack = { nav.popBackStack() }) }
+                if (DevTools.hasToolsScreen) {
+                    composable(Routes.DEBUG) {
+                        DevTools.ToolsScreen(onBack = { nav.popBackStack() }, onConnected = { nav.showTab(Routes.DASHBOARD) })
+                    }
                 }
             }
             if (Tabs.any { it.route == route }) {

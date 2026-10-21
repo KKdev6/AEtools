@@ -3,12 +3,7 @@ package com.anantenergies.bms.dev
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -37,25 +32,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.anantenergies.bms.AeApp
 import com.anantenergies.bms.ble.GattLinkFactory
 import com.anantenergies.bms.domain.Advertisement
+import com.anantenergies.bms.domain.BmsDevice
 import com.anantenergies.bms.drivers.demo.DemoController
 import com.anantenergies.bms.drivers.demo.DemoScenario
+import com.anantenergies.bms.drivers.jbd.JbdBrand
 import com.anantenergies.bms.drivers.sim.SimScenario
 import com.anantenergies.bms.drivers.sim.SimulatedJbdBoard
 import com.anantenergies.bms.ui.components.OutlineButton
@@ -66,20 +54,29 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Developer tools for debug builds. The release source set has an empty stand-in with the same API. */
+/**
+ * Developer tools for debug builds. The release source set has an empty stand-in with the same API.
+ *
+ * Debug builds look like release builds (owner decision): nothing here shows on the normal
+ * screens apart from "debug build" next to the app version. Everything for testing without
+ * hardware sits on the tools screen, opened with 5 taps on the app version.
+ */
 object DevTools {
     private val controller = DemoController()
     private val board = SimulatedJbdBoard()
 
     val demo: DemoControl? = controller
 
-    /** Raw Bluetooth traffic, shown on the Bluetooth log screen. */
+    /** Raw Bluetooth traffic, shown on the tools screen. */
     val trafficLog: TrafficLog? = TrafficLog()
 
-    /** Devices the scan list shows in addition to real ones. */
+    /** Boards a QR code can name besides real ones. Never listed in the scan. */
     val simulatedAdvertisements: List<Advertisement> = listOf(SimulatedJbdBoard.ADVERTISEMENT)
 
-    const val hasTrafficScreen = true
+    /** Shown next to the app version in Settings. */
+    val buildLabel: String? = "debug build"
+
+    const val hasToolsScreen = true
 
     fun linkFactory(real: GattLinkFactory): GattLinkFactory = board.linkFactory(real)
 
@@ -89,93 +86,62 @@ object DevTools {
     fun simulatedAddressIn(qrText: String): String? =
         SimulatedJbdBoard.ADDRESS.takeIf { qrText.contains(it, ignoreCase = true) }
 
-    /** The "No BMS nearby?" card at the bottom of the Devices screen. */
+    /**
+     * The simulated JBD board, demo mode, their fault scenarios and the raw Bluetooth log.
+     * [onConnected] opens the Dashboard after starting the board or the demo pack.
+     */
     @Composable
-    fun DemoEntryCard(onStartDemo: () -> Unit, modifier: Modifier = Modifier) {
-        val colors = AeTheme.colors
-        Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = modifier
-                .fillMaxWidth()
-                .clip(AeShapes.card)
-                .background(colors.surface)
-                .dashedBorder(colors.borderStrong, 12.dp)
-                .padding(16.dp),
-        ) {
-            Text("No BMS nearby?", style = AeTheme.type.bodyLarge.copy(fontWeight = FontWeight.SemiBold))
-            Text(
-                "Demo mode runs a simulated 16S pack so you can try every screen without hardware. " +
-                    "The simulated JBD board in the list above tests the real JBD code instead.",
-                style = AeTheme.type.small,
-                color = colors.textSecondary,
-            )
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(AeShapes.small)
-                    .background(colors.textPrimary)
-                    .clickable(role = Role.Button, onClick = onStartDemo),
-            ) {
-                Text(
-                    "Start demo mode",
-                    color = colors.background,
-                    style = AeTheme.type.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
-                )
-            }
-        }
-    }
-
-    /** Shown on every screen while connected to the demo pack or the simulated board. Long-press it for scenarios. */
-    @Composable
-    fun DemoBanner(address: String, onExitDemo: () -> Unit) {
-        if (isSimulated(address)) {
-            val scenario by board.scenario.collectAsStateWithLifecycle()
-            ScenarioBanner(
-                name = "Simulated JBD board",
-                labels = SimScenario.entries.map { it.label },
-                selected = scenario.ordinal,
-                onSelect = { board.select(SimScenario.entries[it]) },
-                onExit = onExitDemo,
-            )
-        } else {
-            val scenario by controller.scenario.collectAsStateWithLifecycle()
-            ScenarioBanner(
-                name = "Demo mode",
-                labels = DemoScenario.entries.map { it.label },
-                selected = scenario.ordinal,
-                onSelect = { controller.select(DemoScenario.entries[it]) },
-                onExit = onExitDemo,
-            )
-        }
-    }
-
-    /** Raw TX/RX hex, discovered services and errors, newest first. Opened with 5 taps on the app version. */
-    @Composable
-    fun TrafficScreen(onBack: () -> Unit) {
+    fun ToolsScreen(onBack: () -> Unit, onConnected: () -> Unit) {
         val log = trafficLog ?: return
-        val entries by log.entries.collectAsStateWithLifecycle()
         val context = LocalContext.current
+        val bms = remember { (context.applicationContext as AeApp).container.bms }
+        val session by bms.session.collectAsStateWithLifecycle()
+        val entries by log.entries.collectAsStateWithLifecycle()
         val colors = AeTheme.colors
         val format = remember { SimpleDateFormat("HH:mm:ss.SSS", Locale.ROOT) }
 
         Column(Modifier.fillMaxSize()) {
-            ScreenHeader(title = "Bluetooth log", onBack = onBack, subtitle = "${entries.size} entries · debug builds only")
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ScreenHeader(title = "Developer tools", onBack = onBack, subtitle = "Debug builds only")
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             ) {
-                OutlineButton(
-                    "Copy all",
-                    onClick = {
-                        context.getSystemService(ClipboardManager::class.java)
-                            ?.setPrimaryClip(ClipData.newPlainText("AEtools Bluetooth log", log.export()))
-                        Toast.makeText(context, "Log copied", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                OutlineButton("Clear", onClick = log::clear, modifier = Modifier.weight(1f))
+                SectionLabel("Without hardware")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlineButton(
+                        "Simulated board",
+                        onClick = {
+                            val ad = SimulatedJbdBoard.ADVERTISEMENT
+                            bms.connect(BmsDevice(ad.name ?: "Simulated JBD board", ad.address, JbdBrand.ID))
+                            onConnected()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlineButton(
+                        "Demo pack",
+                        onClick = {
+                            bms.startDemo()
+                            onConnected()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                session?.takeIf { it.isDemo }?.let { ScenarioRow(it.device.address, onDisconnect = bms::disconnect) }
+
+                Spacer(Modifier.height(8.dp))
+                SectionLabel("Bluetooth log · ${entries.size} entries")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlineButton(
+                        "Copy all",
+                        onClick = {
+                            context.getSystemService(ClipboardManager::class.java)
+                                ?.setPrimaryClip(ClipData.newPlainText("AEtools Bluetooth log", log.export()))
+                            Toast.makeText(context, "Log copied", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlineButton("Clear", onClick = log::clear, modifier = Modifier.weight(1f))
+                }
             }
             SelectionContainer(Modifier.fillMaxSize()) {
                 LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
@@ -200,29 +166,53 @@ object DevTools {
         }
     }
 
-    @OptIn(ExperimentalFoundationApi::class)
     @Composable
-    private fun ScenarioBanner(
+    private fun SectionLabel(text: String) {
+        Text(text, style = AeTheme.type.sectionLabel, color = AeTheme.colors.textSecondary)
+    }
+
+    /** The scenario of the connected simulated board or demo pack, with a picker. */
+    @Composable
+    private fun ScenarioRow(address: String, onDisconnect: () -> Unit) {
+        if (isSimulated(address)) {
+            val scenario by board.scenario.collectAsStateWithLifecycle()
+            ScenarioPicker(
+                name = "Simulated JBD board",
+                labels = SimScenario.entries.map { it.label },
+                selected = scenario.ordinal,
+                onSelect = { board.select(SimScenario.entries[it]) },
+                onDisconnect = onDisconnect,
+            )
+        } else {
+            val scenario by controller.scenario.collectAsStateWithLifecycle()
+            ScenarioPicker(
+                name = "Demo pack",
+                labels = DemoScenario.entries.map { it.label },
+                selected = scenario.ordinal,
+                onSelect = { controller.select(DemoScenario.entries[it]) },
+                onDisconnect = onDisconnect,
+            )
+        }
+    }
+
+    @Composable
+    private fun ScenarioPicker(
         name: String,
         labels: List<String>,
         selected: Int,
         onSelect: (Int) -> Unit,
-        onExit: () -> Unit,
+        onDisconnect: () -> Unit,
     ) {
         val colors = AeTheme.colors
         var picking by rememberSaveable { mutableStateOf(false) }
 
-        Text(
-            text = if (selected == 0) "$name · simulated data" else "$name · ${labels[selected]}",
-            style = AeTheme.type.label.copy(fontWeight = FontWeight.SemiBold),
-            color = colors.balancingText,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(colors.balancingBg)
-                .combinedClickable(onLongClickLabel = "Choose scenario", onLongClick = { picking = true }, onClick = {})
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f)) {
+                Text("Connected: $name", style = AeTheme.type.bodyLarge.copy(fontWeight = FontWeight.SemiBold))
+                Text("Scenario: ${labels[selected]}", style = AeTheme.type.small, color = colors.textSecondary)
+            }
+            OutlineButton("Change", onClick = { picking = true }, height = 36.dp)
+        }
 
         if (picking) {
             AlertDialog(
@@ -260,7 +250,7 @@ object DevTools {
                 dismissButton = {
                     TextButton(onClick = {
                         picking = false
-                        onExit()
+                        onDisconnect()
                     }) { Text("Disconnect", color = colors.discharge) }
                 },
                 containerColor = colors.surface,
@@ -269,16 +259,5 @@ object DevTools {
                 shape = AeShapes.card,
             )
         }
-    }
-
-    private fun Modifier.dashedBorder(color: Color, radius: Dp) = drawBehind {
-        val stroke = 1.dp.toPx()
-        drawRoundRect(
-            color = color,
-            topLeft = Offset(stroke / 2, stroke / 2),
-            size = Size(size.width - stroke, size.height - stroke),
-            cornerRadius = CornerRadius(radius.toPx()),
-            style = Stroke(width = stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))),
-        )
     }
 }

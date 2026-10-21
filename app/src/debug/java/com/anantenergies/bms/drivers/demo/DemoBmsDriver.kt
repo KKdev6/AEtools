@@ -17,7 +17,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.random.Random
 import kotlin.time.Duration
 
-/** Debug-only demo mode: one simulated pack plus the scenario picked from the demo banner. */
+/** Debug-only demo mode: one simulated pack plus the scenario picked on the developer tools screen. */
 class DemoController : DemoControl {
     private val _scenario = MutableStateFlow(DemoScenario.NORMAL)
     val scenario: StateFlow<DemoScenario> = _scenario.asStateFlow()

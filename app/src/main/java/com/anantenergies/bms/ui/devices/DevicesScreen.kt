@@ -155,7 +155,7 @@ class DevicesViewModel(
         combine(bms.connectStatus, bms.session, bms.linkState, ::Triple),
         combine(qr, awaiting, ::Pair),
     ) { (status, scanning, scanError), (found, showUnnamed), (connect, session, link), (qr, awaiting) ->
-        val all = (DevTools.simulatedAdvertisements + found.values.filter { ad -> DevTools.simulatedAdvertisements.none { it.address == ad.address } })
+        val all = found.values
             .map { ad -> FoundDevice(ad, brands.firstOrNull { it.matches(ad) }) }
             .sortedWith(compareBy<FoundDevice> { it.brand == null }.thenByDescending { it.advertisement.rssi })
         DevicesState(
@@ -217,8 +217,6 @@ class DevicesViewModel(
     fun toggleUnnamed() {
         showUnnamed.update { !it }
     }
-
-    fun startDemo() = bms.startDemo()
 
     fun qrDownloading() {
         qr.value = QrStatus.PreparingScanner
@@ -474,13 +472,6 @@ fun DevicesScreen(onConnected: () -> Unit) {
                 }
             }
         }
-        DevTools.DemoEntryCard(
-            onStartDemo = {
-                viewModel.startDemo()
-                onConnected()
-            },
-            modifier = Modifier.padding(16.dp),
-        )
     }
 
     confirm?.let { device ->

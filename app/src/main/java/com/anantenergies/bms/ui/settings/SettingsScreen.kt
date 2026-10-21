@@ -37,6 +37,7 @@ import com.anantenergies.bms.data.Settings
 import com.anantenergies.bms.data.SettingsRepository
 import com.anantenergies.bms.data.TempUnit
 import com.anantenergies.bms.data.ThemeMode
+import com.anantenergies.bms.dev.DevTools
 import com.anantenergies.bms.domain.BmsDevice
 import com.anantenergies.bms.domain.BmsInfo
 import com.anantenergies.bms.domain.LinkState
@@ -97,7 +98,7 @@ class SettingsViewModel(private val settings: SettingsRepository, private val bm
 fun SettingsScreen(
     onBack: () -> Unit,
     onDisconnected: () -> Unit,
-    /** Opens the Bluetooth log after 5 taps on the app version; null in release builds. */
+    /** Opens the developer tools after 5 taps on the app version; null in release builds. */
     onOpenDebug: (() -> Unit)?,
 ) {
     val viewModel = appViewModel { SettingsViewModel(it.settings, it.bms) }
@@ -218,7 +219,10 @@ fun SettingsScreen(
                         Modifier
                     },
                 ) {
-                    Text(version, style = AeTheme.type.number, color = colors.textSecondary)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(version, style = AeTheme.type.number, color = colors.textSecondary)
+                        DevTools.buildLabel?.let { Text(" · $it", style = AeTheme.type.small, color = colors.textSecondary) }
+                    }
                 }
                 Divider()
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(vertical = 14.dp)) {
@@ -303,6 +307,8 @@ private fun ForgetButton(onForget: () -> Unit, modifier: Modifier) {
 @Composable
 private fun Section(title: String, content: @Composable ColumnScope.() -> Unit) {
     AeCard(
+        // Full width even when the content is short, e.g. "No BMS connected".
+        modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.Top,
     ) {

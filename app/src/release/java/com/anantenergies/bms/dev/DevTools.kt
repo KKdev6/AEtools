@@ -3,7 +3,6 @@
 package com.anantenergies.bms.dev
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import com.anantenergies.bms.ble.GattLinkFactory
 import com.anantenergies.bms.domain.Advertisement
 
@@ -18,7 +17,9 @@ object DevTools {
 
     val simulatedAdvertisements: List<Advertisement> = emptyList()
 
-    const val hasTrafficScreen = false
+    val buildLabel: String? = null
+
+    const val hasToolsScreen = false
 
     fun linkFactory(real: GattLinkFactory): GattLinkFactory = real
 
@@ -27,14 +28,6 @@ object DevTools {
     fun simulatedAddressIn(qrText: String): String? = null
 
     @Composable
-    fun DemoEntryCard(onStartDemo: () -> Unit, modifier: Modifier = Modifier) {
-    }
-
-    @Composable
-    fun DemoBanner(address: String, onExitDemo: () -> Unit) {
-    }
-
-    @Composable
-    fun TrafficScreen(onBack: () -> Unit) {
+    fun ToolsScreen(onBack: () -> Unit, onConnected: () -> Unit) {
     }
 }

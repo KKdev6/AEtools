@@ -19,7 +19,6 @@ import com.anantenergies.bms.domain.LinkState
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /** A view model built from the app's singletons. */
@@ -31,17 +30,10 @@ inline fun <reified VM : ViewModel> appViewModel(crossinline create: (AppContain
 
 private const val STOP_TIMEOUT_MS = 5_000L
 
-class MainViewModel(settings: SettingsRepository, private val bms: BmsRepository) : ViewModel() {
+class MainViewModel(settings: SettingsRepository) : ViewModel() {
     /** Null until the stored settings have loaded. */
     val settings: StateFlow<Settings?> = settings.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
-    /** The address of the demo pack or simulated board while one is connected, for the demo banner. */
-    val demoAddress: StateFlow<String?> = bms.session
-        .map { session -> session?.takeIf { it.isDemo }?.device?.address }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
-    fun exitDemo() = bms.disconnect()
 }
 
 /** Everything the Dashboard and Cells screens show. */
