@@ -6,6 +6,8 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.LocalActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -98,7 +100,16 @@ fun AppRoot() {
                 .background(AeTheme.colors.background)
                 .statusBarsPadding(),
         ) {
-            NavHost(nav, startDestination = start, modifier = Modifier.weight(1f)) {
+            NavHost(
+                nav,
+                startDestination = start,
+                modifier = Modifier.weight(1f),
+                // No fade between screens: tabs switch instantly.
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { EnterTransition.None },
+                popExitTransition = { ExitTransition.None },
+            ) {
                 composable(Routes.DASHBOARD) {
                     DashboardScreen(
                         onOpenCells = { nav.showTab(Routes.CELLS) },

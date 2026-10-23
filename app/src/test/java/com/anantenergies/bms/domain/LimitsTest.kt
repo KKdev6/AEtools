@@ -8,11 +8,13 @@ import org.junit.Test
 class LimitsTest {
 
     @Test
-    fun `datasheet range marks cells outside 2_30 to 3_75 V`() {
-        assertTrue(CellLimits.isOutOfRange(2.299))
-        assertTrue(CellLimits.isOutOfRange(3.751))
-        assertFalse(CellLimits.isOutOfRange(2.30))
-        assertFalse(CellLimits.isOutOfRange(3.75))
+    fun `Li-ion range marks cells outside 2_80 to 4_25 V`() {
+        assertTrue(CellLimits.isOutOfRange(2.799))
+        assertTrue(CellLimits.isOutOfRange(4.251))
+        assertFalse(CellLimits.isOutOfRange(2.80))
+        assertFalse(CellLimits.isOutOfRange(4.25))
+        // A healthy ~3.83 V cell from the real board is in range.
+        assertFalse(CellLimits.isOutOfRange(3.83))
     }
 
     @Test

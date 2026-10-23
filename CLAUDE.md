@@ -117,7 +117,7 @@ Unit tests must cover: these three frames, the same frames split into 20-byte ch
 
 ## Demo mode
 
-`DemoBmsDriver` produces a realistic 16S LiFePO4 pack with no Bluetooth: cell voltages around 3.30 V with small noise, current drifting between −20 A and +15 A, SOC that slowly follows the current, temperatures 25–35 °C, balancing on the highest cells when they are above 3.30 V and the spread is over 15 mV. A scenario control switches between: normal, charging, high spread (one weak cell), over-temperature protection, cell overvoltage protection, and Bluetooth dropped. This lets us test every warning state without hardware.
+`DemoBmsDriver` produces a realistic 16S Li-ion (NMC) pack with no Bluetooth (matching the real board, cells near 3.83 V): cell voltages that follow a Li-ion OCV curve with small noise, current drifting between −20 A and +15 A, SOC that slowly follows the current, temperatures 25–35 °C, balancing on the highest cells when they are above 3.90 V and the spread is over 15 mV. A scenario control switches between: normal, charging, high spread (one weak cell), over-temperature protection, cell overvoltage protection, and Bluetooth dropped. This lets us test every warning state without hardware.
 
 **Demo mode is for development only.** The demo driver, the simulated JBD board and their scenario controls exist only in **debug** builds (the `src/debug` source set), so release builds sent to customers contain no fake data. The raw TX/RX log from milestone 3 follows the same rule.
 
@@ -130,7 +130,7 @@ Unit tests must cover: these three frames, the same frames split into 20-byte ch
 - Cell count comes from the BMS (10–24), never hard-coded.
 - Phones only for now. Don't build tablet-specific layouts yet, but avoid fixed pixel widths so a tablet layout can be added later.
 - Internet (owner decision): keep the INTERNET permission that Google's code scanner library adds for its usage statistics. The app must work fully offline: scanning the list and connecting over Bluetooth never need the internet. Only the QR scanner's one-time download by Google Play services does, and offline the app says so straight away and points to the list.
-- Colour limits from the DB24SA08 datasheet: cell range 2.30–3.75 V; balancing starts at 3.30 V with a spread over 15 mV.
+- Colour limits (owner decision, 2026-10-23): the connected packs are Li-ion (NMC) — confirmed on the real board, whose cells rest near 3.83 V — so cell range is **2.80–4.25 V** (red outside it). Balancing is read from the BMS, not computed. When a LiFePO4 board is added later, limits become per driver/chemistry (ask the owner).
 - Temperature colours (owner decision): above 45 °C orange, above 50 °C red, judged in °C whatever unit is displayed.
 
 ## Screens
@@ -143,7 +143,7 @@ Bottom navigation with three tabs: **Dashboard** (gauge icon), **Cells** (bar-ch
 2. **Dashboard.** Header: AE mark, "DB24SA08 · 16S" (model and cell count), status line "Connected · −62 dBm · updated 1 s ago", gear button. Then:
    - **Battery card:** header row "Battery" with a status pill on the right (Charging / Discharging / Idle). Body: SOC ring (brand cyan) with the big percentage and "State of charge" inside; beside it a list of Voltage, Current (orange when discharging), Power.
    - Below that, three cards that share the remaining height equally: **Cells** (highest cell #n in orange, lowest #n in blue, spread in mV, "16 cells · 3 balancing ›", tapping opens Cells), **Temperatures** (each sensor), **Status** ("No protections active" or the active protection messages, chips: Charge MOS on/off, Discharge MOS on/off, Heater on/off when known, cycle count). Values in the Cells and Temperatures cards are vertically centred under the title.
-3. **Cells.** Back arrow, title "Cells", "16 in series · LiFePO4", AE mark at the right. Four small tiles: Highest, Lowest, Average, Spread. A bar chart of every cell (window around the average, highest bar orange, lowest blue, others grey) and a two-column list of cells with voltage to 3 decimals and a "BAL" tag on balancing cells.
+3. **Cells.** Back arrow, title "Cells", "16 in series · Li-ion" (the chemistry label comes from the driver), AE mark at the right. Four small tiles: Highest, Lowest, Average, Spread. A bar chart of every cell (window around the average, highest bar orange, lowest blue, others grey) and a two-column list of cells with voltage to 3 decimals and a "BAL" tag on balancing cells.
 4. **Settings.** Back arrow, title, AE mark. Sections:
    - Connection: Auto-connect on launch (switch), Refresh rate 1 s / 2 s / 5 s (default 2 s).
    - Display: Theme System / Dark / Light (default Dark), Temperature unit °C / °F.
@@ -186,7 +186,7 @@ Colour tokens:
 | OK / MOS on | #6FE0C4 (chip border #2F5A50) | #0E7A62 (chip border #9FD6C6) |
 | connected dot | #3CC8A8 | #12A37F |
 | balancing tag | bg #1E3550, text #9FD0FF | bg #DCE8F7, text #1F64B5 |
-| warning / protections / cell outside 2.30–3.75 V | #FF8A80 (bg #3D1C1C, border #6B2E2E) | #B3261E (bg #FCE4E2, border #F1B5AF) |
+| warning / protections / cell outside 2.80–4.25 V | #FF8A80 (bg #3D1C1C, border #6B2E2E) | #B3261E (bg #FCE4E2, border #F1B5AF) |
 
 A MOS that is off is shown as a neutral grey chip, not red. The full token set, including the few extra colours the mockup needs, is in `ui/theme/Color.kt`.
 
@@ -196,7 +196,8 @@ A MOS that is off is shown as a neutral grey chip, not red. The full token set, 
 2. **JBD parser.** `JbdFrame` encode/decode, chunk reassembly, `JbdParser` to `BmsSnapshot`, with all unit tests above passing.
 3. **Bluetooth.** Permissions, scanning, recognising JBD, connecting, notifications, the request/response queue, polling, reconnect, and QR connect. Add a debug screen (hidden behind 5 taps on the app version) that shows raw TX/RX hex and discovered UUIDs, so we can diagnose the real board. It is now the Developer tools screen (see Demo mode).
    - Status: built and tested without hardware. Debug builds have a **simulated JBD board** (`drivers/sim/`, debug source set) that answers with real JBD frames over a fake link, started from Developer tools, with fault scenarios there (dropped/corrupt replies, link drop, silent BMS, protections). The Bluetooth log also records each board's advertisement on connect.
-   - Still to confirm on the real DB24SA08: GATT UUIDs and advertised name, byte layout of 0x03/0x04, what 0x05 returns (shown as the model), which temperature index is the board/MOS sensor, heater state.
+   - Confirmed on the real board (2026-10-23, model `SP17S005P17S50A`, advertised name `512-260514-150213`, recognised by the `ff00` service): GATT UUIDs `ff00`/`ff01`/`ff02` as expected; the advertised name is not JBD-style, so recognition is by service UUID. The 0x03 reply is 38 data bytes (length `0x26`) with nine fields after the 3 NTCs, which we ignore; 0x03/0x04 byte layout parses correctly. 0x05 returns the raw board string `SP17S005P17S50A`, shown verbatim as the model (owner decision). A real-board capture is locked in as a parser regression test (`JbdTestVectors.HW_*`).
+   - Still to confirm on the real board: which temperature index is the board/MOS sensor; heater state (the nine trailing 0x03 fields are undecoded); the current sign convention (the capture was idle at 0 A — needs a load/charge test).
    - QR connect: built (added to the spec after the first Milestone 3 commit). The manifest asks Google Play services to download its scanner at install time. Tried on the emulator up to the scanner opening and closing; what happens after a real scan is still to try on a phone. Debug builds also accept a QR code with the simulated board's address.
 4. **Polish.** Auto-connect, Bluetooth-off and permission-denied states, empty and error states, app icon from the AE mark.
    - Done early: app icon, Bluetooth-off / Location-off / permission prompts, status line that shortens on narrow phones, release signing setup.

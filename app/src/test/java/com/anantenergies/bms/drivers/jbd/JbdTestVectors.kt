@@ -19,6 +19,22 @@ object JbdTestVectors {
 
     val SPEC_CELLS_MV = listOf(3301, 3298, 3305, 3300, 3296, 3303, 3311, 3299, 3302, 3297, 3300, 3292, 3304, 3309, 3301, 3298)
 
+    /**
+     * Captured from a real JBD board (model SP17S005P17S50A) on 2026-10-23: 16S Li-ion, 61.25 V,
+     * 0 A idle, SOC 64 %, both MOS on, no protections, 3 NTCs at 28.0 / 26.2 / 26.1 °C. The 0x03
+     * reply is 38 data bytes (length 0x26) with nine fields after the temperatures that we ignore.
+     */
+    val HW_BASIC_INFO = hex(
+        "DD 03 00 26 17 ED 00 00 07 FF 0C 80 00 00 34 AE 00 00 00 00 00 00 41 40 03 10 03 0B C3 0B B1 0B B0 00 00 00 0C 80 07 FF 00 00 F7 F4 77",
+    )
+
+    /** Captured with [HW_BASIC_INFO]: 16 cells near 3.83 V. */
+    val HW_CELL_VOLTAGES = hex(
+        "DD 04 00 20 0E F3 0E FA 0E F6 0E F4 0E F6 0E F0 0E F8 0E F2 0E F8 0E F3 0E F4 0E F6 0E F2 0E F4 0E F1 0E F4 EF B9 77",
+    )
+
+    val HW_CELLS_MV = listOf(3827, 3834, 3830, 3828, 3830, 3824, 3832, 3826, 3832, 3827, 3828, 3830, 3826, 3828, 3825, 3828)
+
     fun hex(text: String): ByteArray =
         text.split(' ').filter { it.isNotEmpty() }.map { it.toInt(16).toByte() }.toByteArray()
 

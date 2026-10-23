@@ -52,7 +52,7 @@ class DemoBmsDriver(
     override suspend fun connect(device: BmsDevice) {
         _linkState.value = LinkState.Connecting
         delay(700)
-        _info.value = BmsInfo(brand = "Demo", model = "DB24SA08", chemistry = "LiFePO4")
+        _info.value = BmsInfo(brand = "Demo", model = "DB24SA08", chemistry = "Li-ion")
         connected = true
         _linkState.value = LinkState.Connected(rssi = -62)
     }

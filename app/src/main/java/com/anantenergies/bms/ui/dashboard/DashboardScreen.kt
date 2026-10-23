@@ -7,7 +7,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,9 +22,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -35,7 +35,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -46,8 +45,6 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -265,51 +262,18 @@ private fun ConnectionMessage(
 
 @Composable
 private fun Body(snapshot: BmsSnapshot, unit: TempUnit, onOpenCells: () -> Unit) {
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val top = 8.dp
-        val bottom = 16.dp
-        val fillHeight = maxHeight - top - bottom
-        Column(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp, top = top, bottom = bottom),
-        ) {
-            FirstThenEqualColumn(minHeight = fillHeight, spacing = 12.dp) {
-                BatteryCard(snapshot)
-                CellsCard(snapshot, onOpenCells)
-                TemperaturesCard(snapshot, unit)
-                StatusCard(snapshot)
-            }
-        }
-    }
-}
-
-/**
- * The first child at its natural height; the rest share whatever is left of [minHeight] equally.
- * A child whose content needs more than its share (short screens, large text, several protections)
- * grows instead of clipping, and the parent scrolls.
- */
-@Composable
-private fun FirstThenEqualColumn(minHeight: Dp, spacing: Dp, content: @Composable () -> Unit) {
-    Layout(content) { measurables, constraints ->
-        val width = constraints.maxWidth
-        val gap = spacing.roundToPx()
-        val first = measurables.first().measure(Constraints(minWidth = width, maxWidth = width))
-        val rest = measurables.drop(1)
-        val gaps = gap * rest.size
-        val share = if (rest.isEmpty()) 0 else (minHeight.roundToPx() - first.height - gaps) / rest.size
-        val placeables = rest.map {
-            it.measure(Constraints(minWidth = width, maxWidth = width, minHeight = share.coerceAtLeast(0)))
-        }
-        layout(width, first.height + gaps + placeables.sumOf { it.height }) {
-            first.place(0, 0)
-            var y = first.height + gap
-            placeables.forEach {
-                it.place(0, y)
-                y += it.height + gap
-            }
-        }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // Battery (big) with the SOC ring, then Status, then the compact Cells and Temperature cards.
+        BatteryCard(snapshot)
+        StatusCard(snapshot)
+        CellsCard(snapshot, onOpenCells)
+        TemperaturesCard(snapshot, unit)
     }
 }
 
@@ -318,26 +282,52 @@ private fun BatteryCard(snapshot: BmsSnapshot) {
     val colors = AeTheme.colors
     AeCard(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             CardTitle("Battery", Modifier.weight(1f))
             FlowPill(snapshot.flow)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
             SocRing(snapshot.soc)
-            Column(Modifier.weight(1f)) {
-                Metric("Voltage", valueWithUnit(Format.packVoltage(snapshot.packVoltage), "V"))
-                HorizontalDivider(thickness = 1.dp, color = colors.border)
-                Metric(
-                    "Current",
-                    valueWithUnit(Format.current(snapshot.current), "A"),
-                    if (snapshot.flow == CurrentFlow.DISCHARGING) colors.discharge else colors.textPrimary,
-                )
-                HorizontalDivider(thickness = 1.dp, color = colors.border)
-                Metric("Power", valueWithUnit(Format.power(snapshot.power), "W"))
-            }
         }
+        // Voltage, Current and Power, three across below the ring.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            RingMetric(
+                "Voltage",
+                valueWithUnit(Format.packVoltage(snapshot.packVoltage), "V"),
+                colors.textPrimary,
+                Modifier.weight(1f),
+            )
+            VerticalDivider(Modifier.height(34.dp), color = colors.border)
+            RingMetric(
+                "Current",
+                valueWithUnit(Format.current(snapshot.current), "A"),
+                if (snapshot.flow == CurrentFlow.DISCHARGING) colors.discharge else colors.textPrimary,
+                Modifier.weight(1f),
+            )
+            VerticalDivider(Modifier.height(34.dp), color = colors.border)
+            RingMetric(
+                "Power",
+                valueWithUnit(Format.power(snapshot.power), "W"),
+                colors.textPrimary,
+                Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RingMetric(label: String, value: AnnotatedString, valueColor: Color, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = AeTheme.type.numberLarge, color = valueColor, maxLines = 1)
+        Text(
+            label,
+            style = AeTheme.type.parameter,
+            color = AeTheme.colors.textSecondary,
+            maxLines = 1,
+            modifier = Modifier.padding(top = 3.dp),
+        )
     }
 }
 
@@ -357,7 +347,7 @@ private fun SocRing(soc: Int) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(140.dp)
+            .size(200.dp)
             .clearAndSetSemantics { contentDescription = "State of charge $soc percent" },
     ) {
         Canvas(Modifier.fillMaxSize()) {
@@ -377,16 +367,14 @@ private fun SocRing(soc: Int) {
                 )
             }
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                buildAnnotatedString {
-                    append(soc.toString())
-                    withStyle(SpanStyle(fontSize = 19.sp)) { append("%") }
-                },
-                style = AeTheme.type.numberHero,
-            )
-            Text("State of charge", style = AeTheme.type.label, color = colors.textSecondary, modifier = Modifier.padding(top = 4.dp))
-        }
+        // Just the percentage, sized for the larger ring.
+        Text(
+            buildAnnotatedString {
+                append(soc.toString())
+                withStyle(SpanStyle(fontSize = 26.sp)) { append("%") }
+            },
+            style = AeTheme.type.numberHero.copy(fontSize = 56.sp, lineHeight = 56.sp),
+        )
     }
 }
 
@@ -396,15 +384,6 @@ private fun valueWithUnit(value: String, unit: String): AnnotatedString {
     return buildAnnotatedString {
         append(value)
         withStyle(SpanStyle(fontFamily = PlexMono, fontSize = 13.sp, color = secondary)) { append(" $unit") }
-    }
-}
-
-@Composable
-private fun Metric(label: String, value: AnnotatedString, valueColor: Color = AeTheme.colors.textPrimary) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(label, style = AeTheme.type.parameter, color = AeTheme.colors.textSecondary, modifier = Modifier.alignByBaseline())
-        Spacer(Modifier.weight(1f))
-        Text(value, style = AeTheme.type.numberLarge, color = valueColor, modifier = Modifier.alignByBaseline())
     }
 }
 
@@ -429,26 +408,24 @@ private fun CellsCard(snapshot: BmsSnapshot, onOpenCells: () -> Unit) {
                 color = colors.low,
             )
         }
-        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-            if (stats != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Stat(
-                        "Highest · #${stats.highestIndex + 1}",
-                        "${Format.cellVoltage(stats.highest)} V",
-                        cellColor(stats.highest, colors.discharge),
-                        Modifier.weight(1f),
-                    )
-                    Stat(
-                        "Lowest · #${stats.lowestIndex + 1}",
-                        "${Format.cellVoltage(stats.lowest)} V",
-                        cellColor(stats.lowest, colors.low),
-                        Modifier.weight(1f),
-                    )
-                    Stat("Spread", "${Format.millivolts(stats.spread)} mV", colors.textPrimary, Modifier.weight(1f))
-                }
-            } else {
-                Text("No cell voltages yet", style = AeTheme.type.small, color = colors.textSecondary)
+        if (stats != null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Stat(
+                    "Highest · #${stats.highestIndex + 1}",
+                    "${Format.cellVoltage(stats.highest)} V",
+                    cellColor(stats.highest, colors.discharge),
+                    Modifier.weight(1f),
+                )
+                Stat(
+                    "Lowest · #${stats.lowestIndex + 1}",
+                    "${Format.cellVoltage(stats.lowest)} V",
+                    cellColor(stats.lowest, colors.low),
+                    Modifier.weight(1f),
+                )
+                Stat("Spread", "${Format.millivolts(stats.spread)} mV", colors.textPrimary, Modifier.weight(1f))
             }
+        } else {
+            Text("No cell voltages yet", style = AeTheme.type.small, color = colors.textSecondary)
         }
     }
 }
@@ -457,13 +434,12 @@ private fun CellsCard(snapshot: BmsSnapshot, onOpenCells: () -> Unit) {
 private fun TemperaturesCard(snapshot: BmsSnapshot, unit: TempUnit) {
     AeCard {
         CardTitle("Temperatures")
-        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-            if (snapshot.temperatures.isEmpty()) {
-                Text("No sensors reported", style = AeTheme.type.small, color = AeTheme.colors.textSecondary)
-            }
+        if (snapshot.temperatures.isEmpty()) {
+            Text("No sensors reported", style = AeTheme.type.small, color = AeTheme.colors.textSecondary)
+        } else {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 snapshot.temperatures.chunked(3).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         row.forEach {
                             Stat(it.label, Format.temperature(it.celsius, unit), temperatureColor(it.celsius), Modifier.weight(1f))
                         }
@@ -494,7 +470,6 @@ private fun StatusCard(snapshot: BmsSnapshot) {
         protections.forEach {
             Text(it.message, style = AeTheme.type.body, color = colors.error)
         }
-        Spacer(Modifier.weight(1f))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             MosChip("Charge MOS", snapshot.chargeMosOn)
             MosChip("Discharge MOS", snapshot.dischargeMosOn)

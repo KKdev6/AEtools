@@ -1,5 +1,6 @@
 package com.anantenergies.bms.drivers.jbd
 
+import com.anantenergies.bms.domain.CellLimits
 import com.anantenergies.bms.domain.Protection
 import com.anantenergies.bms.drivers.jbd.JbdTestVectors.BASIC_INFO
 import com.anantenergies.bms.drivers.jbd.JbdTestVectors.BASIC_INFO_PROTECTION
@@ -50,6 +51,30 @@ class JbdParserTest {
     fun `cell voltages from the spec`() {
         val cells = JbdParser.cellVoltages(CELL_VOLTAGES.payload())
         assertEquals(SPEC_CELLS_MV.map { it / 1000.0 }, cells)
+    }
+
+    @Test
+    fun `basic info captured from the real board`() {
+        val info = JbdParser.basicInfo(JbdTestVectors.HW_BASIC_INFO.payload())
+        assertEquals(61.25, info.packVoltage, 1e-9)
+        assertEquals(0.0, info.current, 1e-9)
+        assertEquals(64, info.soc)
+        assertEquals(0, info.cycleCount)
+        assertEquals(16, info.cellCount)
+        assertEquals(emptySet<Int>(), info.balancingCells)
+        assertEquals(emptyList<Protection>(), info.protections)
+        assertTrue(info.chargeMosOn)
+        assertTrue(info.dischargeMosOn)
+        // Three NTCs; the nine fields after them are ignored.
+        assertEquals(listOf(28.0, 26.2, 26.1), info.temperatures)
+    }
+
+    @Test
+    fun `cell voltages captured from the real board are all in range`() {
+        val cells = JbdParser.cellVoltages(JbdTestVectors.HW_CELL_VOLTAGES.payload())
+        assertEquals(JbdTestVectors.HW_CELLS_MV.map { it / 1000.0 }, cells)
+        // ~3.83 V cells are healthy for this Li-ion pack, so none should flag as out of range.
+        cells.forEach { assertFalse("cell $it out of range", CellLimits.isOutOfRange(it)) }
     }
 
     @Test

@@ -45,16 +45,16 @@ class DemoPackModelTest {
     }
 
     @Test
-    fun `cell voltages sit around 3_30 V in the middle of the charge range`() {
+    fun `cell voltages sit near 3_9 V at the starting charge`() {
         val snapshot = DemoPackModel(seed = 1).snapshot(timestamp = 0)
-        snapshot.cellVoltages.forEach { assertEquals(3.30, it, 0.03) }
+        snapshot.cellVoltages.forEach { assertEquals(3.93, it, 0.04) }
     }
 
     @Test
-    fun `balancing only above 3_30 V with a spread over 15 mV`() {
-        assertEquals(emptySet<Int>(), DemoPackModel.balancing(listOf(3.310, 3.320, 3.306)))
-        assertEquals(emptySet<Int>(), DemoPackModel.balancing(listOf(3.280, 3.299, 3.250)))
-        assertEquals(setOf(1, 2), DemoPackModel.balancing(listOf(3.300, 3.320, 3.316, 3.305)))
+    fun `balancing only above 3_90 V with a spread over 15 mV`() {
+        assertEquals(emptySet<Int>(), DemoPackModel.balancing(listOf(3.910, 3.920, 3.906)))
+        assertEquals(emptySet<Int>(), DemoPackModel.balancing(listOf(3.880, 3.899, 3.850)))
+        assertEquals(setOf(1, 2), DemoPackModel.balancing(listOf(3.900, 3.920, 3.916, 3.905)))
     }
 
     @Test

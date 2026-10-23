@@ -19,8 +19,9 @@ enum class DemoScenario(val label: String) {
 }
 
 /**
- * A simulated 16S LiFePO4 pack. Pure and deterministic for a given seed, so tests can step it.
- * It starts at the values of the test vector in CLAUDE.md: 78 %, −12.4 A, 31.0 / 27.4 / 28.1 °C.
+ * A simulated 16S Li-ion (NMC) pack, matching the real board (cells rest near 3.83 V). Pure and
+ * deterministic for a given seed, so tests can step it. It starts at the current, SOC and
+ * temperatures of the test vector in CLAUDE.md: 78 %, −12.4 A, 31.0 / 27.4 / 28.1 °C.
  */
 class DemoPackModel(seed: Long) {
     private val random = Random(seed)
@@ -132,7 +133,8 @@ class DemoPackModel(seed: Long) {
             cells[i] = round(ocv + current * resistance + offset + random.nextDouble(-0.001, 0.001), 3)
         }
         if (scenario == DemoScenario.CELL_OVERVOLTAGE) {
-            cells[HIGH_CELL] = round(3.758 + random.nextDouble(-0.001, 0.001), 3)
+            // Just above the Li-ion ceiling (CellLimits.MAX_V), so the cell trips overvoltage and shows red.
+            cells[HIGH_CELL] = round(4.30 + random.nextDouble(-0.001, 0.001), 3)
         }
     }
 
@@ -155,17 +157,21 @@ class DemoPackModel(seed: Long) {
         private const val MAX_CURRENT_A = 15.0
         private const val MAX_STEP_S = 10.0
 
-        /** Per-cell spread, from the cell test vector in CLAUDE.md (each cell minus 3301 mV). */
+        /** Demo-only balancing thresholds (the real app reads balancing from the BMS). Li-ion values. */
+        private const val BALANCE_START_V = 3.90
+        private const val BALANCE_SPREAD_V = 0.015
+
+        /** Per-cell spread in mV, a fixed pattern added on top of the open-circuit voltage. */
         private val CELL_OFFSETS_MV = intArrayOf(0, -3, 4, -1, -5, 2, 10, -2, 1, -4, -1, -9, 3, 8, 0, -3)
 
-        /** Balancing runs on the highest cells when they are above 3.30 V and the spread is over 15 mV. */
+        /** Balancing runs on the highest cells when they are above 3.90 V and the spread is over 15 mV. */
         fun balancing(cells: List<Double>): Set<Int> {
             val highest = cells.max()
-            if (highest - cells.min() <= CellLimits.BALANCE_SPREAD_V) return emptySet()
-            return cells.indices.filter { cells[it] > CellLimits.BALANCE_START_V && cells[it] >= highest - 0.006 }.toSet()
+            if (highest - cells.min() <= BALANCE_SPREAD_V) return emptySet()
+            return cells.indices.filter { cells[it] > BALANCE_START_V && cells[it] >= highest - 0.006 }.toSet()
         }
 
-        /** Resting LiFePO4 cell voltage for a state of charge, by linear interpolation. */
+        /** Resting Li-ion (NMC) cell voltage for a state of charge, by linear interpolation. */
         fun openCircuitVoltage(soc: Double): Double {
             val points = OCV_CURVE
             val i = points.indexOfFirst { it.first >= soc }.coerceAtLeast(1)
@@ -175,8 +181,8 @@ class DemoPackModel(seed: Long) {
         }
 
         private val OCV_CURVE = listOf(
-            0.0 to 2.80, 5.0 to 3.05, 10.0 to 3.18, 20.0 to 3.24, 30.0 to 3.27, 40.0 to 3.28, 50.0 to 3.29,
-            60.0 to 3.30, 70.0 to 3.31, 80.0 to 3.32, 90.0 to 3.33, 95.0 to 3.35, 98.0 to 3.40, 100.0 to 3.45,
+            0.0 to 3.00, 5.0 to 3.45, 10.0 to 3.55, 20.0 to 3.62, 30.0 to 3.67, 40.0 to 3.72, 50.0 to 3.77,
+            60.0 to 3.82, 70.0 to 3.88, 80.0 to 3.95, 90.0 to 4.05, 95.0 to 4.12, 98.0 to 4.17, 100.0 to 4.20,
         )
 
         private fun round(value: Double, decimals: Int): Double {

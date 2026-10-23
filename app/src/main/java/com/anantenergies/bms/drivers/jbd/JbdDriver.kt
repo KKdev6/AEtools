@@ -57,8 +57,8 @@ class JbdDriver(
 
     override suspend fun connect(device: BmsDevice) {
         keeper.connect(device.address)
-        // The app targets LiFePO4 packs (DB24SA08).
-        _info.value = BmsInfo(brand = "JBD", model = null, chemistry = "LiFePO4")
+        // The connected packs are Li-ion (NMC); confirmed on the real board (cells rest near 3.83 V).
+        _info.value = BmsInfo(brand = "JBD", model = null, chemistry = "Li-ion")
         // What register 0x05 holds on the DB24SA08 is not confirmed; use it as the model if it answers.
         val name = session.value?.request(JbdRequest.HARDWARE)?.let { JbdParser.hardwareName(it.data) }
         if (!name.isNullOrBlank()) {

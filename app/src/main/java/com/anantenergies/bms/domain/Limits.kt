@@ -1,11 +1,12 @@
 package com.anantenergies.bms.domain
 
-/** Limits from the DB24SA08 datasheet, used for colouring. */
+/**
+ * Cell colour limits for the connected packs (Li-ion / NMC; confirmed on the real board, whose
+ * cells rest near 3.83 V). A cell outside this range is shown in the warning colour.
+ */
 object CellLimits {
-    const val MIN_V = 2.30
-    const val MAX_V = 3.75
-    const val BALANCE_START_V = 3.30
-    const val BALANCE_SPREAD_V = 0.015
+    const val MIN_V = 2.80
+    const val MAX_V = 4.25
 
     fun isOutOfRange(volts: Double) = volts < MIN_V || volts > MAX_V
 }

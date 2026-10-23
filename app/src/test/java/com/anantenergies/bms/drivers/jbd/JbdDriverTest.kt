@@ -34,7 +34,7 @@ class JbdDriverTest {
         driver.connect(device)
         assertEquals(LinkState.Connected(rssi = null), driver.linkState.value)
         assertEquals("DB24SA08", driver.info.value?.model)
-        assertEquals("LiFePO4", driver.info.value?.chemistry)
+        assertEquals("Li-ion", driver.info.value?.chemistry)
 
         val snapshot = driver.snapshots(2.seconds).first()
         assertEquals(52.82, snapshot.packVoltage, 1e-9)
