@@ -43,8 +43,10 @@ android {
         release {
             signingConfig = signingConfigs.findByName("release")
             optimization {
-                enable = true
-                packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
+                // R8 off: with it on, release builds crashed where debug builds don't (on launch,
+                // IllegalAccessError in kotlin.sequences; and opening the QR scanner, NPE inside
+                // ML Kit). Off, release runs the same code that was tested on the real board.
+                enable = false
             }
         }
     }
