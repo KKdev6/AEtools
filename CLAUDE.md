@@ -8,6 +8,8 @@ An Android app that connects to a battery's BMS over Bluetooth Low Energy (BLE) 
 
 The app is **read-only**. It must never send a command that changes BMS settings, protection values or MOSFET state. It only sends the read requests listed in this file.
 
+A second, **internal-only** app, "AEtools Factory", writes the settings presets during pack assembly. It lives in `factory/` and is never given to customers (see "Factory app"). Everything above about read-only applies to the customer app in `app/`, which must never contain write code.
+
 Owner: Anant Energies (tagline "Empowering the future").
 
 ## How we work
@@ -126,7 +128,7 @@ Unit tests must cover: these three frames, the same frames split into 20-byte ch
 ## Product decisions (ask before changing)
 
 - Show the SOC **percentage only**. Never display Ah capacity or a "time left" estimate anywhere.
-- Read-only: no writing of BMS parameters, ever.
+- Read-only: the customer app never writes BMS parameters. Only the internal factory app does (owner decision, 2026-10-27).
 - Cell count comes from the BMS (10–24), never hard-coded.
 - Phones only for now. Don't build tablet-specific layouts yet, but avoid fixed pixel widths so a tablet layout can be added later.
 - Internet (owner decision): keep the INTERNET permission that Google's code scanner library adds for its usage statistics. The app must work fully offline: scanning the list and connecting over Bluetooth never need the internet. Only the QR scanner's one-time download by Google Play services does, and offline the app says so straight away and points to the list.
@@ -204,6 +206,105 @@ A MOS that is off is shown as a neutral grey chip, not red. The full token set, 
    - Auto-connect: built and tried on the emulator with the simulated board (debug builds remember it; its "Out of range" scenario tests the couldn't-reach state). Not yet tried with the real board.
 
 Future (not now): JK BMS driver (JK BD series boards), data logging/export, multiple saved packs.
+
+## Factory app (internal only)
+
+Owner decision, 2026-10-27. **AEtools Factory** applies a whole settings preset to a pack's BMS in one go, verifies it, and keeps a log sheet, so staff no longer type each setting into the JBD app. Staff phones only: never on the Play Store for customers (sideload the APK, or a Play internal testing track at most).
+
+### Layout (same repository)
+
+```
+app/       customer app "AEtools" (com.anantenergies.bms), read-only; depends on core/ only
+factory/   "AEtools Factory" (com.anantenergies.bms.factory); all write code, profiles, presets, apply/verify, checklist, log sheet
+core/      shared, read-only: ble/, domain/, the JBD read frames and parser, theme, fonts, brand assets
+docs/      jbd-write-protocol.md (decoded commands, confirmed against a real-board capture)
+```
+
+- `app` must never depend on `factory`. A build check fails if it does, and the customer app's read-only test stays.
+- Moving the shared code from `app/` into `core/` is a mechanical move with no behaviour change. All of the customer app's tests must still pass afterwards.
+- The factory app uses the same theme, fonts and logo, and the same tech stack. No new libraries without asking. The log sheet is a CSV file in app storage, shared with Android's share sheet.
+
+### Write protocol
+
+Exact bytes, addresses and scaling are in `docs/jbd-write-protocol.md`. Rules:
+
+- Enter settings mode once, write every setting of the preset, then **exit and save** once. If any write is refused or times out, **exit without saving** (`DD 5A 01 02 00 00 FF FD 77`) and report which setting failed. Never save a half-applied preset (the JBD app does).
+- Only the addresses in the BMS model's profile can be written. A unit test fails if the factory code could write anything else.
+- Never write: cell count, Level2 overcurrent, short circuit (fixed by the board), or production data. Function bits (address 29) are read-modify-write and only the balance bits may change.
+- Reads use the new-protocol read (`DD A5 FA …`), which needs no settings mode.
+
+### BMS model profiles
+
+A preset can only be applied to the BMS model it was written for. Each profile has:
+
+- id and how to recognise it: the board string from register 0x05 (e.g. `SP17S005P17S50A` starts with `SP17S005`) plus the chip-type probe (`DD A5 00 00 00 00 77` → `01` = new protocol);
+- protocol (old registers or new `FA` addresses), the writable addresses, the read-only ones;
+- rated discharge current (SP17S005: 60 A);
+- lock: none, or a module password/key. The SP17S005 has none, so its flow has no password step. A model with a password gets its own profile, presets (from its own settings card) and a password step;
+- the cell-count and chemistry the presets assume (SP17S005: 16 cells, NMC).
+
+On an unknown board the app writes nothing and says so.
+
+### Presets: 60V family on SP17S005 (settings card Rev 4.0)
+
+Two presets. Each records its card revision, and the log sheet stores it with every pack.
+
+| Setting | 60V 23Ah (16S5P) | 60V 27 / 32 / 36 / 41Ah (16S6P–9P) |
+|---|---|---|
+| Cell high protect / recover | 4.18 / 4.10 V | 4.20 / 4.15 V |
+| Cell low protect / recover | 2.70 / 2.90 V | same |
+| Pack high protect / recover | 66.8 / 65.6 V | 67.0 / 66.4 V |
+| Pack low protect / recover | 43.2 / 46.4 V | same |
+| Hardware cell high / low | 4.25 / 2.50 V | same |
+| Voltage delays (pack high, pack low, cell high, cell low) | 2 s each | same |
+| Charge over current, delay, release | 20 A, 10 s, 32 s | same |
+| Discharge over current, delay, release | 60 A, 30 s, 32 s | same |
+| Charge high temp protect / recover | 54 / 48 °C | same |
+| Charge low temp protect / recover | 3 / 8 °C | same |
+| Discharge high temp protect / recover | 60 / 50 °C | same |
+| Discharge low temp protect / recover | −15 / −10 °C | same |
+| MOS high temp protect | 90 °C (recover not written) | same |
+| Temperature delays | 5 s each | same |
+| Balance | on, charge balance (never static) | same |
+| Balance voltage / accuracy | 4.09 V / 15 mV | 4.14 V / 15 mV |
+| AveFullVolt / AveEmptyVolt | 4.08 / 2.80 V | 4.13 / 2.80 V |
+| SOC 100…10 % (V per cell) | 4.09 4.03 3.96 3.89 3.82 3.75 3.68 3.58 3.45 3.30 | 4.14 4.06 3.99 3.92 3.84 3.77 3.69 3.60 3.46 3.31 |
+
+Per pack, typed in by the operator: **design capacity and cycle capacity = the Ah this pack gave on test** (DSF40 discharge). The app checks it against the expected range for the model and warns outside it: 23Ah 18.9–19.7, 27Ah 23.9–24.9, 32Ah 28.0–29.0, 36Ah 32.0–33.2, 41Ah 36.0–37.4 Ah (at 15 A). Staff choose the pack model (23 / 27 / 32 / 36 / 41Ah); the model picks the preset and the expected range.
+
+Preset values live in code, are reviewed like code, and have unit tests that encode them to the exact bytes. Staff cannot edit them in the app.
+
+### Apply flow
+
+Connect → identify the BMS model → choose pack model → enter pack number and tested Ah → screen listing every setting, current value → new value → read and keep a backup of all current values → apply → read everything back and compare → ask the operator to power-cycle the BMS and wait → reconnect and read everything again → checklist → save the log entry → reminder: "Now bind this pack in the JBD app."
+
+- Discharge over current must read back as 60 A. If it reads 40 A: **"This is a 40 A board. Do not ship."**
+- Any mismatch on read-back fails the pack and lists the settings that didn't stick.
+
+### Checklist (automatic where the app can measure it)
+
+Automatic: 16 cells; every enabled temperature sensor at room temperature ±3 °C; all values read back after the power-cycle; balance set to charge balance. Live cell delta is shown; at end of charge it must be 15 mV or less (over 30 mV: top-balance with the NEEY).
+
+Ticked by the operator: J2 then J1 plugged within 5 s; protection counts reset; 80 A DC fuse fitted; charger output in range (23Ah 65.5–65.7 V, 27–41Ah 66.3–66.5 V); balance leads and sensors secured.
+
+### Log sheet
+
+One row per pack: date and time, operator, pack number, pack model, BMS model and MAC, preset and card revision, tested Ah, resistance (typed in), end-of-charge delta, each checklist result, pass/fail, and the settings read back. Kept on the phone and exported as CSV.
+
+### Binding
+
+JBD's binding is an account record on JBD's server (see `docs/jbd-write-protocol.md`). It sends nothing to the pack, so it cannot reset settings, and it only stops other **JBD app** users from changing them. Staff bind in the JBD app after the factory app passes the pack. The SP17S005 has no on-pack lock.
+
+### Testing without hardware
+
+The simulated JBD board (debug builds) gains write support: register store, settings mode, save versus exit-without-save, and fault injection (refused write, timeout, value that doesn't stick, 40 A board, link drop mid-apply). Encoding tests use the frames from the real-board capture in `docs/jbd-write-protocol.md`.
+
+### Factory milestones
+
+- **F1. `core/` module.** Move the shared code out of `app/`, with no behaviour change, and add the build check that `app` doesn't depend on `factory`.
+- **F2. Write protocol, profiles, presets.** Pure Kotlin, fully unit-tested, and the simulated board with write support.
+- **F3. Factory app: apply and verify.** Connect, identify, choose a preset, enter tested Ah, review, apply, read back, power-cycle and verify again. Tried against the simulated board first, then on one real pack.
+- **F4. Checklist and log sheet.** Checklist screen, log storage, CSV export.
 
 ## Release signing
 
