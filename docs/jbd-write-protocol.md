@@ -21,6 +21,24 @@ Same framing and checksum as the read requests: checksum = `0x10000 − sum(byte
 | Exit **and save** | `DD 5A 01 02 28 28 FF AD 77` | Only this makes the new values permanent. |
 | Exit **without saving** | `DD 5A 01 02 00 00 FF FD 77` | Use on any failure. |
 
+### Confirmed on the real board (HCI snoop log, 2026-10-27, pack "Test-60V32Ah-bbsr", SP17S005)
+
+- Chip-type probe reply `DD 00 00 02 00 01 FF FD 77`: type `01`, so this board uses the **new protocol**.
+- New-protocol reads work **without** entering settings mode, e.g. `DD A5 FA 03 00 10 08 FE EB 77` reads 8 registers
+  from address 16 (pack and cell voltage limits). The checksum covers `FA` through the last data byte.
+- Write as the JBD app sends it, cell OV delay to 3 s:
+  `DD 5A 00 02 56 78 FF 30 77` → `DD 5A FA 05 00 33 01 00 03 FE CA 77` → `DD 5A 01 02 28 28 FF AD 77`.
+  Replies: `DD 00 00 00 00 00 77`, `DD FA 00 00 00 00 77`, `DD 01 00 00 00 00 77` (status `00`, zero length).
+  The JBD app wraps every single write in its own enter/save. Several writes between one enter and one save is
+  what its own batch function does too.
+- Delays are **one register each** on this protocol, not packed: 48 pack UV, 49 pack OV, 50 cell UV,
+  51 cell OV (51 confirmed: changing the cell overvoltage delay wrote address `0x33`).
+- Function bits (address 29): `0x0006` = static balance, `0x000E` = charge balance. So bit 3 (`0x08`) is
+  charge balance, bit 2 (`0x04`) balance on, bit 1 (`0x02`) load detect. Change only bit 3 (read-modify-write).
+- NTC enable bits (address 30) read `0x0007`: three sensors enabled.
+- The JBD app also sends `FF AA 19 01 01 1B` (module info) and `FF AA 06 00 06` (module name) on connect. These go
+  to the Bluetooth module, not the BMS; the factory app does not need them.
+
 The JBD app sends "exit and save" even after a failed write, so a half-applied preset gets saved. Our app must
 exit **without** saving on any error, then report what failed.
 
@@ -63,8 +81,8 @@ Old-protocol register / new-protocol address. Values are unsigned 16-bit big-end
 | SOC 100 % | 0x47 | 111 | mV |
 | MOS high temperature | (unclear) | 202 / 203 | 0.1 K. The app's old-protocol table says 0x2E / 0x2F, which clash with NTC bits and cell count; treat as new-protocol only until confirmed |
 
-To confirm on the board: the byte order inside the packed delay registers (the app's parser reads byte 0 as
-"low/first" and byte 1 as "high/second"), and the exact bits of 0x2D.
+The packed delays only apply to old-protocol boards. If one is ever added, confirm their byte order with a
+capture first (the app's parser reads byte 0 as the first value, byte 1 as the second).
 
 "Battery type" is not a stored setting. The JBD app shows LFP when CellHighVolt is below 4.000 V and NMC
 otherwise, so the card's CellHighVolt values make it read NMC.
