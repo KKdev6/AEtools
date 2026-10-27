@@ -65,11 +65,13 @@ class PresetApplier(private val board: BoardChannel) {
         return values
     }
 
-    suspend fun apply(plan: WritePlan): ApplyResult {
+    /** [onProgress] gets the number of settings written so far and the total. */
+    suspend fun apply(plan: WritePlan, onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): ApplyResult {
         if (board.send(JbdSettingsFrames.enterSettings, JbdSettingsFrames.ENTER_REPLY) !is BoardReply.Ok) {
             return ApplyResult.Failed(ApplyResult.Stage.ENTER, null, "The BMS didn't enter settings mode", saved = false)
         }
-        for (write in plan.writes) {
+        for ((index, write) in plan.writes.withIndex()) {
+            onProgress(index, plan.writes.size)
             val reply = board.send(JbdSettingsFrames.write(plan.profile, write.setting, write.raw), JbdSettingsFrames.FA)
             if (reply !is BoardReply.Ok) {
                 board.send(JbdSettingsFrames.exitWithoutSaving, JbdSettingsFrames.EXIT_REPLY)
