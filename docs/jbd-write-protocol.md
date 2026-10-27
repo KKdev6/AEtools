@@ -89,13 +89,17 @@ otherwise, so the card's CellHighVolt values make it read NMC.
 
 ## Binding and password
 
-Both are features of JBD's Bluetooth module (commands starting `FF AA`), not of the BMS chip:
+- **Binding is an account record on JBD's server**, not a setting on the pack. Binding calls
+  `POST /server/device/bind?deviceAddr=<MAC>&customerCode=…`, unbinding `/server/device/unBind`. No Bluetooth
+  command is sent. Before opening its parameter screen, the JBD app asks `/server/device/permission?macAddr=…`
+  and only allows changes when `permissions.paramSet` is true. So binding blocks other **JBD app** users only.
+  It cannot change or reset anything stored on the BMS, and the BMS itself does not refuse writes from other
+  apps (ours included) because of it.
+- **Module key / password**: some newer JBD Bluetooth modules can store a key or a 6-character password
+  (commands starting `FF AA`, e.g. `FF AA 16` write password, `FF AA 21`/`22` verify/enable key). The module then
+  checks it, so that lock would apply to every app. On the SP17S005 capture the module did not answer the
+  `FF AA 19` capability query, which fits the owner's finding that this model has no password. Treat this
+  model as having no on-pack lock.
 
-- **Binding ("app key")**: the module stores a key that JBD's app derives from its own secret and the board's
-  MAC. Once it is enabled, the module needs that key before it accepts settings writes. Live data reads keep
-  working (the owner tested AEtools on a bound pack). We do not set, use or work around this; staff bind
-  in the JBD app as the last step.
-- **Password (6 characters)**: also stored in the module (`FF AA 16 …`), and only on modules that support it.
-  The SP17S005 does not.
-
-So the factory app must write and verify every setting **before** the pack is bound.
+The factory app can therefore write to an SP17S005 whether or not it is bound. The settings stay until
+something writes them again; binding only stops other people from doing that with the JBD app.
