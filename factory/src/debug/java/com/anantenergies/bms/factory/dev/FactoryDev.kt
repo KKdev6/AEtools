@@ -29,7 +29,13 @@ object FactoryDev {
     val simulatedBoard: Board? = Board(name = "Simulated SP17S005", address = ADDRESS)
 
     fun linkFactory(real: GattLinkFactory, scope: CoroutineScope) = GattLinkFactory { address, profile ->
-        if (address == ADDRESS) SimulatedSettingsLink(board, scope) else real.create(address, profile)
+        if (address == ADDRESS) {
+            // After a "link drops" fault the screen asks for a power-cycle; reconnecting stands in for it.
+            if (board.dropLink) board.powerCycle()
+            SimulatedSettingsLink(board, scope)
+        } else {
+            real.create(address, profile)
+        }
     }
 
     fun powerCycle(address: String) {

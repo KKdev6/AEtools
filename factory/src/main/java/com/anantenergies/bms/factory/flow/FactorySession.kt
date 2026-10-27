@@ -36,7 +36,8 @@ sealed interface Step {
     /** A board the app doesn't know: nothing is written. */
     data class UnknownBoard(val board: Board, val identity: BoardIdentity) : Step
 
-    data class EnterDetails(val board: Board, val profile: BmsModelProfile, val boardName: String) : Step
+    /** [previous] holds what was typed before, when coming back from the review. */
+    data class EnterDetails(val board: Board, val profile: BmsModelProfile, val boardName: String, val previous: PackDetails? = null) : Step
 
     data class Reading(val board: Board) : Step
 
@@ -108,7 +109,7 @@ class FactorySession(
     /** Back from the review to the details, keeping the connection. */
     fun editDetails() {
         val current = _step.value as? Step.Review ?: return
-        _step.value = Step.EnterDetails(current.board, current.plan.profile, boardName)
+        _step.value = Step.EnterDetails(current.board, current.plan.profile, boardName, previous = current.details)
     }
 
     suspend fun apply() {
@@ -139,7 +140,7 @@ class FactorySession(
     /** Reconnects after the power-cycle (the BMS may still be starting) and reads everything back. */
     suspend fun verifyAfterPowerCycle() {
         val current = (_step.value as? Step.PowerCycle)?.let { Triple(it.board, it.details, it.plan) }
-            ?: (_step.value as? Step.Verified)?.takeIf { it.result == null }?.let { Triple(it.board, it.details, it.plan) }
+            ?: (_step.value as? Step.Verified)?.takeIf { it.result !is ApplyResult.Applied }?.let { Triple(it.board, it.details, it.plan) }
             ?: return
         val (board, details, plan) = current
         _step.value = Step.Verifying(board, details, plan)
