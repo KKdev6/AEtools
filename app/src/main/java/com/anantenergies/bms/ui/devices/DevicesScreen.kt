@@ -45,7 +45,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import com.anantenergies.bms.R
+import com.anantenergies.bms.core.R
 import com.anantenergies.bms.ble.BleScanner
 import com.anantenergies.bms.ble.BluetoothAvailability
 import com.anantenergies.bms.ble.BluetoothStatus

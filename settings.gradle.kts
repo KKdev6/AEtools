@@ -24,4 +24,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "AEtools"
 include(":app")
+include(":core")
  

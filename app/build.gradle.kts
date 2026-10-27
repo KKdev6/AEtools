@@ -59,7 +59,19 @@ android {
     }
 }
 
+// The customer app is read-only: it must never contain the factory app's write code
+// (see CLAUDE.md, Factory app). Fails the build if anything here depends on :factory.
+configurations.configureEach {
+    val configurationName = name
+    withDependencies {
+        filterIsInstance<ProjectDependency>().firstOrNull { it.path == ":factory" }?.let {
+            throw GradleException("app must not depend on :factory (configuration $configurationName)")
+        }
+    }
+}
+
 dependencies {
+    implementation(project(":core"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)

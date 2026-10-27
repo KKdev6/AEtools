@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.anantenergies.bms.R
+import com.anantenergies.bms.core.R
 import com.anantenergies.bms.ble.BluetoothStatus
 import com.anantenergies.bms.data.ConnectStatus
 import com.anantenergies.bms.data.TempUnit

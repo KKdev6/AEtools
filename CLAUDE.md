@@ -302,6 +302,7 @@ The simulated JBD board (debug builds) gains write support: register store, sett
 ### Factory milestones
 
 - **F1. `core/` module.** Move the shared code out of `app/`, with no behaviour change, and add the build check that `app` doesn't depend on `factory`.
+  - Done: `core/` holds `ble/`, `domain/`, `drivers/jbd/`, `qr/`, `dev/TrafficLog`, `ui/theme/`, `ui/components/`, the fonts and drawables, and their tests (Kotlin packages unchanged; resources are `com.anantenergies.bms.core.R`). `app/` keeps the screens, view models, `data/`, `ui/Format`, the demo driver, the simulated board and Developer tools. All 85 unit tests still pass; the guard in `app/build.gradle.kts` was tried with a dummy `:factory` dependency and fails the build as intended.
 - **F2. Write protocol, profiles, presets.** Pure Kotlin, fully unit-tested, and the simulated board with write support.
 - **F3. Factory app: apply and verify.** Connect, identify, choose a preset, enter tested Ah, review, apply, read back, power-cycle and verify again. Tried against the simulated board first, then on one real pack.
 - **F4. Checklist and log sheet.** Checklist screen, log storage, CSV export.

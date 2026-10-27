@@ -9,7 +9,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
-import com.anantenergies.bms.R
+import com.anantenergies.bms.core.R
 import com.anantenergies.bms.ui.theme.AeTheme
 
 /** The AE mark: cyan on dark, the deeper cyan file on light. */

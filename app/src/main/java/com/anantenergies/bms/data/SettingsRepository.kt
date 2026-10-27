@@ -63,7 +63,8 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
         store.edit {
             it[LAST_DEVICE_NAME] = device.name
             it[LAST_DEVICE_ADDRESS] = device.address
-            if (device.brandId != null) it[LAST_DEVICE_BRAND] = device.brandId else it.remove(LAST_DEVICE_BRAND)
+            val brandId = device.brandId
+            if (brandId != null) it[LAST_DEVICE_BRAND] = brandId else it.remove(LAST_DEVICE_BRAND)
         }
     }
 

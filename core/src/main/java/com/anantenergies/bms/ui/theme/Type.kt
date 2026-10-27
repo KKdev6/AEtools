@@ -8,7 +8,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import com.anantenergies.bms.R
+import com.anantenergies.bms.core.R
 
 val PlexSans = FontFamily(
     Font(R.font.ibm_plex_sans_regular, FontWeight.Normal),

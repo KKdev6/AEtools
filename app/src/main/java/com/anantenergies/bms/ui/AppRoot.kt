@@ -43,7 +43,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.anantenergies.bms.R
+import com.anantenergies.bms.core.R
 import com.anantenergies.bms.data.ThemeMode
 import com.anantenergies.bms.dev.DevTools
 import com.anantenergies.bms.ui.cells.CellsScreen

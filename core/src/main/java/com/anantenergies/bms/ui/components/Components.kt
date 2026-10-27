@@ -35,7 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.anantenergies.bms.R
+import com.anantenergies.bms.core.R
 import com.anantenergies.bms.domain.CellLimits
 import com.anantenergies.bms.domain.TemperatureLevel
 import com.anantenergies.bms.domain.TemperatureLimits
