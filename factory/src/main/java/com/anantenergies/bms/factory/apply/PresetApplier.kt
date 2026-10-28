@@ -52,15 +52,15 @@ class PresetApplier(private val board: BoardChannel) {
         return BoardIdentity(name, chipType, name?.let { BmsModels.identify(it, chipType) })
     }
 
-    /** Every writable and read-only setting of [profile], or null if any read went unanswered. */
+    /** Every writable and read-only setting of [profile], or null if any read went unanswered or was refused. */
     suspend fun readAll(profile: BmsModelProfile): Map<JbdSetting, Int>? {
-        val settings = (profile.writable + profile.readOnly).sortedBy { it.address }
+        val wanted = (profile.writable + profile.readOnly).associateBy { it.address }
         val values = mutableMapOf<JbdSetting, Int>()
-        for (run in runs(settings)) {
-            val address = run.first().address
-            val reply = board.send(JbdSettingsFrames.read(address, run.size), JbdSettingsFrames.FA) as? BoardReply.Ok ?: return null
-            val raw = JbdSettingsFrames.readValues(reply.data, address, run.size) ?: return null
-            run.zip(raw).forEach { (setting, value) -> values[setting] = value }
+        for (block in profile.readBlocks) {
+            val count = block.last - block.first + 1
+            val reply = board.send(JbdSettingsFrames.read(block.first, count), JbdSettingsFrames.FA) as? BoardReply.Ok ?: return null
+            val raw = JbdSettingsFrames.readValues(reply.data, block.first, count) ?: return null
+            block.zip(raw).forEach { (address, value) -> wanted[address]?.let { values[it] = value } }
         }
         return values
     }
@@ -100,19 +100,5 @@ class PresetApplier(private val board: BoardChannel) {
         /** The chip-type probe's reply has register byte 00, like the enter reply. */
         const val PROBE_REPLY = 0x00
         const val RATING_TOLERANCE_A = 0.5
-
-        /** Splits settings sorted by address into runs of consecutive addresses, at most one read each. */
-        fun runs(settings: List<JbdSetting>): List<List<JbdSetting>> {
-            val runs = mutableListOf<MutableList<JbdSetting>>()
-            for (setting in settings) {
-                val last = runs.lastOrNull()
-                if (last != null && last.size < JbdSettingsFrames.MAX_READ && setting.address == last.last().address + 1) {
-                    last += setting
-                } else {
-                    runs += mutableListOf(setting)
-                }
-            }
-            return runs
-        }
     }
 }

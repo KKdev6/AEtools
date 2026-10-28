@@ -98,7 +98,7 @@ class FactorySession(
         val backup = applier?.readAll(current.profile)
         if (backup == null) {
             close()
-            _step.value = Step.ConnectFailed(current.board, "Couldn't read the BMS settings. Nothing was written.")
+            _step.value = Step.ConnectFailed(current.board, "Couldn't read the BMS settings. Nothing was written. Tap Log to see which read failed.")
             return
         }
         val plan = WritePlan.create(current.profile, details.pack, details.testedAh, backup)

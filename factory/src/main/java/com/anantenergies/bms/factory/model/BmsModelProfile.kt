@@ -22,6 +22,11 @@ data class BmsModelProfile(
     val writable: Set<JbdSetting>,
     /** Read and shown, never written. */
     val readOnly: Set<JbdSetting>,
+    /**
+     * The address ranges read together, one request each. Copied from how the JBD app reads this
+     * board: a read that spans two of its groups may be refused.
+     */
+    val readBlocks: List<IntRange>,
     val ratedDischargeAmps: Double,
     val lock: SettingsLock,
     val cellCount: Int,
@@ -30,6 +35,8 @@ data class BmsModelProfile(
     init {
         require(writable.none { it in readOnly }) { "$id: a setting can't be both writable and read only" }
         require(writable.none { it in NEVER_WRITTEN }) { "$id: ${writable.filter { it in NEVER_WRITTEN }} must never be written" }
+        val unread = (writable + readOnly).filter { setting -> readBlocks.none { setting.address in it } }
+        require(unread.isEmpty()) { "$id: no read block covers $unread" }
     }
 
     fun matches(boardName: String, probedChipType: Int?): Boolean =
@@ -54,6 +61,12 @@ object BmsModels {
         chipType = 1,
         writable = JbdSetting.entries.toSet() - BmsModelProfile.NEVER_WRITTEN,
         readOnly = BmsModelProfile.NEVER_WRITTEN,
+        // The JBD app v2.0.1's reads (BaseParamProtocol); 0x10 × 8, 0x30 × 4, 0x26 × 2, 0x1A × 2 and
+        // 0x1D × 2 are confirmed in the real-board capture.
+        readBlocks = listOf(
+            0..1, 2..3, 8..15, 16..23, 24..25, 26..27, 29..30, 31..31,
+            34..37, 38..39, 40..43, 44..47, 48..51, 52..55, 106..111, 202..203,
+        ),
         ratedDischargeAmps = 60.0,
         lock = SettingsLock.NONE,
         cellCount = 16,
