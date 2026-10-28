@@ -84,7 +84,7 @@ fun PowerCycleScreen(onVerify: () -> Unit) {
 
 /** After the power-cycle: the final verdict for this pack. */
 @Composable
-fun VerifiedScreen(step: Step.Verified, onRetryVerify: () -> Unit, onRetry: () -> Unit, onDone: () -> Unit) {
+fun VerifiedScreen(step: Step.Verified, onRetryVerify: () -> Unit, onRetry: () -> Unit, onChecklist: () -> Unit, onDone: () -> Unit) {
     ResultColumn {
         val result = step.result
         when {
@@ -100,11 +100,11 @@ fun VerifiedScreen(step: Step.Verified, onRetryVerify: () -> Unit, onRetry: () -
                 ReadBackSummary(result, total = step.plan.writes.size, afterRestart = true)
                 if (result.passed) {
                     MessageCard(
-                        "Pack ${step.details.packNumber} passed",
-                        step.plan.pack.preset.setByHand.map { "In the JBD app, also set $it" } + "Now bind this pack in the JBD app.",
+                        "Pack ${step.details.packNumber}: settings verified",
+                        listOf("Next: the checks before sealing the pack."),
                         Tone.OK,
                     )
-                    PrimaryButton("Next pack", onDone, Modifier.fillMaxWidth())
+                    PrimaryButton("Next: checklist", onChecklist, Modifier.fillMaxWidth())
                 } else {
                     OutlineButton("Read the BMS again and retry", onRetry, Modifier.fillMaxWidth())
                 }

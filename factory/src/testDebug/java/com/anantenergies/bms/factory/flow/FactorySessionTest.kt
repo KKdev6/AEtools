@@ -2,6 +2,9 @@ package com.anantenergies.bms.factory.flow
 
 import com.anantenergies.bms.ble.GattLinkFactory
 import com.anantenergies.bms.factory.apply.ApplyResult
+import com.anantenergies.bms.factory.checklist.ChecklistInput
+import com.anantenergies.bms.factory.checklist.ManualCheck
+import com.anantenergies.bms.factory.checklist.PackLogEntry
 import com.anantenergies.bms.factory.model.BmsModels
 import com.anantenergies.bms.factory.model.JbdSetting
 import com.anantenergies.bms.factory.model.PackModel
@@ -105,10 +108,54 @@ class FactorySessionTest {
         assertEquals(Step.ChooseBoard, session.step.value)
     }
 
+    private val logged = mutableListOf<PackLogEntry>()
+
     private fun TestScope.session() = FactorySession(
         scope = backgroundScope,
         links = GattLinkFactory { _, _ -> SimulatedSettingsLink(board, backgroundScope) },
         log = null,
         onPowerCycle = { board.powerCycle() },
+        logSheet = { logged += it },
+        clock = { 1_793_000_000_000 },
     )
+
+    private suspend fun FactorySession.throughVerify() {
+        connect(device)
+        review(details)
+        apply()
+        startPowerCycle()
+        verifyAfterPowerCycle()
+    }
+
+    @Test
+    fun `checklist reads live values and a complete checklist is logged as a pass`() = runTest {
+        val session = session()
+        session.throughVerify()
+        session.startChecklist()
+        val checklist = session.step.value as Step.Checklist
+        assertTrue(checklist.auto.toString(), checklist.auto.all { it.passed })
+        assertEquals(8, checklist.live!!.deltaMillivolts)
+
+        session.saveChecklist(
+            ChecklistInput("Ravi", 62.0, 12, ManualCheck.entries.toSet(), details.pack.preset.setByHand.toSet()),
+        )
+        val entry = (session.step.value as Step.Logged).entry
+        assertTrue(entry.problems.toString(), entry.passed)
+        assertEquals(listOf(entry), logged)
+        assertEquals("P-0042", entry.packNumber)
+        assertEquals("SP17S005P17S50A", entry.bmsModel)
+        assertEquals(4140, entry.readBack[JbdSetting.BALANCE_VOLTAGE])
+    }
+
+    @Test
+    fun `a warm sensor and missing ticks are logged as a fail`() = runTest {
+        board.temperatures = listOf(26.0, 26.0, 35.0)
+        val session = session()
+        session.throughVerify()
+        session.startChecklist()
+        session.saveChecklist(ChecklistInput("Ravi", 62.0, 12, emptySet(), emptySet()))
+        val entry = logged.single()
+        assertFalse(entry.passed)
+        assertTrue(entry.problems.first().startsWith("Temperature sensors"))
+    }
 }

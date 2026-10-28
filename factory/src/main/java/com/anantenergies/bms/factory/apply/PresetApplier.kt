@@ -1,7 +1,9 @@
 package com.anantenergies.bms.factory.apply
 
+import com.anantenergies.bms.drivers.jbd.JbdFormatException
 import com.anantenergies.bms.drivers.jbd.JbdParser
 import com.anantenergies.bms.drivers.jbd.JbdRequest
+import com.anantenergies.bms.factory.checklist.LiveReading
 import com.anantenergies.bms.factory.model.BmsModelProfile
 import com.anantenergies.bms.factory.model.BmsModels
 import com.anantenergies.bms.factory.model.JbdSetting
@@ -63,6 +65,18 @@ class PresetApplier(private val board: BoardChannel) {
             block.zip(raw).forEach { (address, value) -> wanted[address]?.let { values[it] = value } }
         }
         return values
+    }
+
+    /** Live cells and temperatures (the customer app's 0x03 and 0x04 reads), or null if the board didn't answer. */
+    suspend fun readLive(): LiveReading? {
+        val basic = board.send(JbdRequest.BASIC_INFO.encode(), JbdRequest.BASIC_INFO.register) as? BoardReply.Ok ?: return null
+        val cells = board.send(JbdRequest.CELL_VOLTAGES.encode(), JbdRequest.CELL_VOLTAGES.register) as? BoardReply.Ok ?: return null
+        return try {
+            val info = JbdParser.basicInfo(basic.data)
+            LiveReading(info.cellCount, JbdParser.cellVoltages(cells.data), info.temperatures)
+        } catch (e: JbdFormatException) {
+            null
+        }
     }
 
     /** [onProgress] gets the number of settings written so far and the total. */

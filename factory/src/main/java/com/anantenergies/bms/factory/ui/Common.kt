@@ -85,11 +85,13 @@ fun Step.title(): String = when (this) {
     is Step.PowerCycle -> "Power-cycle the BMS"
     is Step.Verifying -> "Checking after the restart"
     is Step.Verified -> "Result"
+    is Step.Checklist -> "Before sealing the pack"
+    is Step.Logged -> "Saved to the log sheet"
 }
 
 /** Back goes to the board list, except while the app is talking to the BMS. */
 fun Step.canGoBack(): Boolean = when (this) {
-    Step.ChooseBoard, is Step.Connecting, is Step.Reading, is Step.Applying, is Step.Verifying -> false
+    Step.ChooseBoard, is Step.Connecting, is Step.Reading, is Step.Applying, is Step.Verifying, is Step.Checklist -> false
     else -> true
 }
 

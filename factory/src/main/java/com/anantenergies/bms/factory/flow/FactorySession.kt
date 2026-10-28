@@ -8,6 +8,11 @@ import com.anantenergies.bms.factory.apply.ApplyResult
 import com.anantenergies.bms.factory.apply.BoardIdentity
 import com.anantenergies.bms.factory.apply.PresetApplier
 import com.anantenergies.bms.factory.apply.WritePlan
+import com.anantenergies.bms.factory.checklist.AutoCheck
+import com.anantenergies.bms.factory.checklist.Checklist
+import com.anantenergies.bms.factory.checklist.ChecklistInput
+import com.anantenergies.bms.factory.checklist.LiveReading
+import com.anantenergies.bms.factory.checklist.PackLogEntry
 import com.anantenergies.bms.factory.model.BmsModelProfile
 import com.anantenergies.bms.factory.model.PackModel
 import com.anantenergies.bms.factory.protocol.GattBoardChannel
@@ -54,6 +59,24 @@ sealed interface Step {
 
     /** Read back after the power-cycle. [result] is null when the board couldn't be reached again. */
     data class Verified(val board: Board, val details: PackDetails, val plan: WritePlan, val result: ApplyResult?) : Step
+
+    /** After the pack passed: the automatic checks on a live reading, then the operator's ticks. */
+    data class Checklist(
+        val board: Board,
+        val details: PackDetails,
+        val plan: WritePlan,
+        val verified: ApplyResult.Applied,
+        val live: LiveReading?,
+        val auto: List<AutoCheck>,
+    ) : Step
+
+    /** Written to the log sheet. */
+    data class Logged(val board: Board, val details: PackDetails, val entry: PackLogEntry) : Step
+}
+
+/** Where finished packs go (the log sheet file). */
+fun interface PackLogSink {
+    fun append(entry: PackLogEntry)
 }
 
 /**
@@ -66,6 +89,8 @@ class FactorySession(
     private val log: TrafficLog?,
     /** Called when the operator is asked to power-cycle [address] (the simulated board restarts). */
     private val onPowerCycle: (address: String) -> Unit = {},
+    private val logSheet: PackLogSink = PackLogSink {},
+    private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val _step = MutableStateFlow<Step>(Step.ChooseBoard)
     val step: StateFlow<Step> = _step.asStateFlow()
@@ -148,6 +173,55 @@ class FactorySession(
         val result = if (identity?.profile == plan.profile) applier?.verify(plan) else null
         log?.info("Verify after power-cycle: $result")
         _step.value = Step.Verified(board, details, plan, result)
+    }
+
+    /** After a pass: reads live cells and temperatures and runs the automatic checks. */
+    suspend fun startChecklist() {
+        val current = _step.value as? Step.Verified ?: return
+        val verified = (current.result as? ApplyResult.Applied)?.takeIf { it.passed } ?: return
+        _step.value = checklist(current.board, current.details, current.plan, verified)
+    }
+
+    /** Reads the live values again, e.g. after the operator fixed a sensor. */
+    suspend fun refreshChecklist() {
+        val current = _step.value as? Step.Checklist ?: return
+        _step.value = checklist(current.board, current.details, current.plan, current.verified)
+    }
+
+    /** Saves the pack to the log sheet, passed or not. */
+    fun saveChecklist(input: ChecklistInput) {
+        val current = _step.value as? Step.Checklist ?: return
+        val preset = current.plan.pack.preset
+        val problems = Checklist.problems(current.auto, input, preset.setByHand)
+        val entry = PackLogEntry(
+            time = clock(),
+            operator = input.operator.trim(),
+            packNumber = current.details.packNumber,
+            packModel = current.details.pack.label,
+            bmsModel = boardName.ifBlank { current.plan.profile.id },
+            bmsAddress = current.board.address,
+            preset = preset.name,
+            cardRevision = preset.cardRevision,
+            testedAh = current.details.testedAh,
+            resistanceMilliohm = input.resistanceMilliohm,
+            endOfChargeDeltaMv = input.endOfChargeDeltaMv,
+            liveDeltaMv = current.live?.deltaMillivolts,
+            auto = current.auto,
+            ticked = input.ticked,
+            setByHand = preset.setByHand,
+            setByHandDone = input.setByHandDone,
+            passed = problems.isEmpty(),
+            problems = problems,
+            readBack = current.verified.readBack,
+        )
+        logSheet.append(entry)
+        log?.info("Logged pack ${entry.packNumber}: ${if (entry.passed) "PASS" else "FAIL"} $problems")
+        _step.value = Step.Logged(current.board, current.details, entry)
+    }
+
+    private suspend fun checklist(board: Board, details: PackDetails, plan: WritePlan, verified: ApplyResult.Applied): Step.Checklist {
+        val live = applier?.readLive()
+        return Step.Checklist(board, details, plan, verified, live, Checklist.automatic(plan.profile, verified, live))
     }
 
     /** Starts again from a fresh read of the same board, e.g. after a failed apply. */

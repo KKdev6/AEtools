@@ -10,6 +10,10 @@ import com.anantenergies.bms.ble.BluetoothStatus
 import com.anantenergies.bms.dev.TrafficLog
 import com.anantenergies.bms.domain.Advertisement
 import com.anantenergies.bms.drivers.jbd.JbdBrand
+import com.anantenergies.bms.factory.checklist.ChecklistInput
+import com.anantenergies.bms.factory.checklist.LoggedPack
+import com.anantenergies.bms.factory.checklist.PackLogStore
+import com.anantenergies.bms.factory.data.OperatorStore
 import com.anantenergies.bms.factory.dev.FactoryDev
 import com.anantenergies.bms.factory.flow.Board
 import com.anantenergies.bms.factory.flow.FactorySession
@@ -17,6 +21,8 @@ import com.anantenergies.bms.factory.flow.PackDetails
 import com.anantenergies.bms.factory.flow.Step
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
@@ -33,11 +39,24 @@ class FactoryViewModel(application: Application) : AndroidViewModel(application)
     /** Raw Bluetooth traffic, so a first real apply can be checked. Internal app: kept in all builds. */
     val log = TrafficLog()
 
+    /** The log sheet: one CSV row per pack, in app storage. */
+    val logSheet = PackLogStore(application.filesDir.resolve("pack-log.csv"))
+
+    private val operators = OperatorStore(application)
+    val operator: StateFlow<String> = operators.operator.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    private val _loggedPacks = MutableStateFlow(logSheet.packs())
+    val loggedPacks: StateFlow<List<LoggedPack>> = _loggedPacks.asStateFlow()
+
     private val session = FactorySession(
         scope = viewModelScope,
         links = FactoryDev.linkFactory(AndroidGattLinkFactory(application), viewModelScope),
         log = log,
         onPowerCycle = FactoryDev::powerCycle,
+        logSheet = { entry ->
+            logSheet.append(entry)
+            _loggedPacks.value = logSheet.packs()
+        },
     )
     val step: StateFlow<Step> = session.step
 
@@ -114,6 +133,15 @@ class FactoryViewModel(application: Application) : AndroidViewModel(application)
     fun verify() = launchOne { session.verifyAfterPowerCycle() }
 
     fun retry() = launchOne { session.retry() }
+
+    fun startChecklist() = launchOne { session.startChecklist() }
+
+    fun refreshChecklist() = launchOne { session.refreshChecklist() }
+
+    fun saveChecklist(input: ChecklistInput) = launchOne {
+        operators.setOperator(input.operator)
+        session.saveChecklist(input)
+    }
 
     fun reset() {
         session.reset()

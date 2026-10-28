@@ -40,7 +40,13 @@ class SimulatedSettingsBoard(var fault: SettingsFault = SettingsFault.NONE) {
     /** [SettingsFault.LINK_DROP_MID_APPLY] drops the link after this many writes. */
     var writesBeforeDrop = 10
 
-    /** What register 0x05 answers; change it to try an unknown board. */
+    /** Live cell voltages, mV: a charged pack with an 8 mV spread. */
+    var cells: List<Int> = List(15) { 4130 + it % 3 } + 4138
+
+    /** Live temperatures, °C (board sensor and two probes at room temperature). */
+    var temperatures: List<Double> = listOf(26.1, 25.6, 26.4)
+
+        /** What register 0x05 answers; change it to try an unknown board. */
     var boardName = "SP17S005P17S50A"
 
     private val stored = INITIAL.toMutableMap()
@@ -73,6 +79,10 @@ class SimulatedSettingsBoard(var fault: SettingsFault = SettingsFault.NONE) {
     fun respond(frame: ByteArray): ByteArray? {
         if (frame.contentEquals(PROBE)) return reply(0x00, 0x00, 0x01)
         if (frame.contentEquals(JbdRequest.HARDWARE.encode())) return reply(JbdRequest.HARDWARE.register, *boardName.toByteArray(Charsets.US_ASCII).map { it.toInt() }.toIntArray())
+        if (frame.contentEquals(JbdRequest.BASIC_INFO.encode())) return reply(JbdRequest.BASIC_INFO.register, *basicInfo())
+        if (frame.contentEquals(JbdRequest.CELL_VOLTAGES.encode())) {
+            return reply(JbdRequest.CELL_VOLTAGES.register, *cells.flatMap { mv -> listOf(mv shr 8, mv and 0xFF) }.toIntArray())
+        }
         if (frame.size < 7 || u(frame[0]) != JbdFrame.START || u(frame.last()) != JbdFrame.END) return null
         val length = u(frame[3])
         if (frame.size != 7 + length) return null
@@ -104,7 +114,25 @@ class SimulatedSettingsBoard(var fault: SettingsFault = SettingsFault.NONE) {
         }
     }
 
-    private fun write(data: List<Int>): ByteArray? {
+    /** The 0x03 payload laid out as in CLAUDE.md (idle, both MOS on, no protections). */
+    private fun basicInfo(): IntArray {
+        val out = mutableListOf<Int>()
+        fun u16(value: Int) = out.addAll(listOf(value shr 8 and 0xFF, value and 0xFF))
+        u16(cells.sum() / 10) // pack voltage, 10 mV
+        u16(0) // current
+        u16(2850) // remaining, 10 mAh
+        u16(stored[JbdSetting.DESIGN_CAPACITY.address] ?: 0)
+        u16(0) // cycles
+        u16(0) // production date
+        u16(0)
+        u16(0) // balancing
+        u16(0) // protections
+        out += listOf(0x10, 95, 0x03, cells.size, temperatures.size)
+        temperatures.forEach { u16(2731 + (it * 10).toInt()) }
+        return out.toIntArray()
+    }
+
+        private fun write(data: List<Int>): ByteArray? {
         if (!inSettingsMode) return errorReply(FA)
         val address = data[0] shl 8 or data[1]
         val value = data[3] shl 8 or data[4]

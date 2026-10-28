@@ -28,6 +28,17 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.AEtoolsFactory">
+        <!-- Shares the log sheet CSV from app storage. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/log_sheet_paths" />
+        </provider>
+
         <activity
             android:name=".FactoryActivity"
             android:exported="true"
