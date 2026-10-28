@@ -316,8 +316,29 @@ The simulated JBD board (debug builds) gains write support: register store, sett
   - Built: after the pass, **Next: checklist** reads 0x03/0x04 live (the same read requests as the customer app) and checks 16 cells, temperature sensors at room temperature (each within ±3 °C of the sensors' average), all settings correct after the power-cycle, and charge balance on; it shows the live cell delta. The operator ticks the card's manual checks (charger range per pack model) and any set-by-hand items, and types operator (remembered in DataStore), resistance and end-of-charge delta (≤ 15 mV passes; over 30 mV says to top-balance with the NEEY). Saving appends one row to `files/pack-log.csv` (fixed columns, one per setting, so files line up), pass or fail, then says to bind in the JBD app. **Log sheet** on the first screen lists packs and shares the CSV through Android's share sheet (FileProvider). 137 unit tests pass.
   - Not yet tried by the owner.
 
+### Getting the app to staff (owner decision, 2026-10-28)
+
+- Staff phones get the **release** APK as a WhatsApp file. Never send the debug APK: it lists the simulated board and its fault picker.
+- Build it with `./gradlew :factory:assembleRelease` with `keystore.properties` in place; it comes out as `factory/build/outputs/apk/release/factory-release.apk`. It is signed with the same key as the customer app. A phone only accepts an update signed with the same key, so never build a staff APK without it.
+- Before every APK sent to staff, raise `versionCode` (by 1) and `versionName` in `factory/build.gradle.kts`; Android refuses an update with the same or a lower `versionCode`. The first screen shows "AEtools Factory version …" so staff can check they have the latest.
+- On the phone: open the file in WhatsApp → allow "Install unknown apps" for WhatsApp once → Install (if Play Protect warns, "More details → Install anyway"). Updating keeps the log sheet; uninstalling deletes it, so share the CSV first.
+
+### Adding a new settings card (owner decision, 2026-10-28)
+
+The owner sends the new card as a PDF. Then:
+
+1. **Same BMS model (SP17S005)**, e.g. a new pack family or a new revision: add or update the presets in `factory/model/Presets.kt` (one `Preset` per column of the card, with its `cardRevision`) and the `PackModel` entries (label, preset, expected capacity range), then the charger range in `ManualCheck.chargerRange` and any card checks that differ. A new revision replaces the old preset values; the log sheet keeps the revision each pack was set with.
+2. **New BMS model** (a different board string from register 0x05): also add a `BmsModelProfile` in `BmsModels`. Before writing to it, get from the owner: the board string (the factory app's Log shows it), and one Bluetooth HCI snoop log of the JBD app reading the parameter pages and changing one setting, to confirm the protocol, read groups and addresses. Ask whether it has a password/key lock.
+3. Card items the board can't take over Bluetooth go in `setByHand`. Never add Level2 OC, short circuit, cell count or NTC bits to `writable`.
+4. Unit tests: each new preset's values encoded to exact register values (like `PresetsTest`), and every new card item covered. Build, run all tests, raise `versionCode`/`versionName`, and tell the owner to send the new release APK to staff.
+5. First real pack of a new model: owner applies it, power-cycles, and compares the JBD app's parameter pages, as was done for the SP17S005.
+
+### 23Ah (owner decision, 2026-10-28)
+
+The 60V 23Ah preset uses exactly the same flow and checks as 27–41Ah; it needs no separate real-pack trial.
+
 ## Release signing
 
-- `app/build.gradle.kts` signs release builds when `keystore.properties` exists next to `settings.gradle.kts` (format in `keystore.properties.example`). It and any `*.jks` / `*.keystore` are git-ignored; never commit them or paste passwords into chat.
+- `app/build.gradle.kts` and `factory/build.gradle.kts` sign release builds when `keystore.properties` exists next to `settings.gradle.kts` (format in `keystore.properties.example`). It and any `*.jks` / `*.keystore` are git-ignored; never commit them or paste passwords into chat.
 - The owner creates the key once (Android Studio: Build → Generate Signed App Bundle or APK → Create new…), keeps the `.jks` outside the project, and backs up the file and both passwords. Losing them means no more updates to the same Play listing (Play App Signing reduces the risk).
 - Without `keystore.properties`, release builds come out unsigned.

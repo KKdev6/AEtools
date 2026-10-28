@@ -13,10 +13,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.anantenergies.bms.ble.BluetoothStatus
@@ -102,6 +104,11 @@ private fun BoardList(vm: FactoryViewModel) {
             BoardRow(scanned.board, scanned.rssi, scanned.recognised, onClick = { vm.connect(scanned.board) })
         }
         item { FactoryDev.Panel() }
+        item {
+            val context = LocalContext.current
+            val version = remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            Text("AEtools Factory version $version", style = AeTheme.type.small, color = AeTheme.colors.textSecondary)
+        }
     }
 }
 
