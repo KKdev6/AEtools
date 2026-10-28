@@ -84,11 +84,13 @@ class ChecklistTest {
         store.append(entry(packNumber = "P-0043", passed = false))
 
         val lines = store.file.readLines()
-        assertEquals(PackLogCsv.line(PackLogCsv.header), lines[0])
+        assertEquals("\uFEFF" + PackLogCsv.line(PackLogCsv.header), lines[0])
         lines.forEach { assertEquals(PackLogCsv.header.size, PackLogCsv.parse(it).size) }
         val row = PackLogCsv.parse(lines[1])
         assertEquals("P-0042, \"A\"", row[2])
         assertEquals("4.140 V", row[PackLogCsv.header.indexOf("Balance voltage")])
+        assertEquals("15 mV", row[PackLogCsv.header.indexOf("Balance accuracy")])
+        assertEquals("16", row[PackLogCsv.header.indexOf("Cell count")])
 
         val packs = store.packs()
         assertEquals(listOf("P-0043", "P-0042, \"A\""), packs.map { it.packNumber })
@@ -101,6 +103,8 @@ class ChecklistTest {
         testedAh = 28.6, resistanceMilliohm = 62.0, endOfChargeDeltaMv = 12, liveDeltaMv = 8,
         auto = Checklist.automatic(profile, verified, live), ticked = ManualCheck.entries.toSet(),
         setByHand = setByHand, setByHandDone = setByHand.toSet(), passed = passed, problems = emptyList(),
-        readBack = mapOf(JbdSetting.BALANCE_VOLTAGE to 4140, JbdSetting.FUNCTIONS to 0x000E),
+        readBack = mapOf(
+            JbdSetting.BALANCE_VOLTAGE to 4140, JbdSetting.BALANCE_ACCURACY to 15, JbdSetting.CELL_COUNT to 16, JbdSetting.FUNCTIONS to 0x000E,
+        ),
     )
 }

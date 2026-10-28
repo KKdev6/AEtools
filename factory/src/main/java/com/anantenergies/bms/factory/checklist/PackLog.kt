@@ -95,8 +95,13 @@ data class LoggedPack(val date: String, val packNumber: String, val packModel: S
 class PackLogStore(val file: File) {
     @Synchronized
     fun append(entry: PackLogEntry) {
-        if (!file.exists() || file.length() == 0L) file.writeText(PackLogCsv.line(PackLogCsv.header) + "\n")
+        // The byte-order mark makes Excel read the file as UTF-8, so °C, mΩ and – show correctly.
+        if (!file.exists() || file.length() == 0L) file.writeText(BOM + PackLogCsv.line(PackLogCsv.header) + "\n")
         file.appendText(PackLogCsv.line(PackLogCsv.row(entry)) + "\n")
+    }
+
+    private companion object {
+        const val BOM = "\uFEFF"
     }
 
     @Synchronized

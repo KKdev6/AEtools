@@ -130,7 +130,14 @@ enum class JbdSetting(val address: Int, val encoding: Encoding, val label: Strin
     MOS_HIGH_TEMP(202, Encoding.DECIKELVIN, "MOS high temp protect");
 
     /** "4.200 V", "60 A", "−15 °C" for [raw]. */
-    fun format(raw: Int): String = when (encoding) {
+    fun format(raw: Int): String = when {
+        this == CELL_COUNT -> raw.toString()
+        // Shown in mV, as the JBD app does.
+        this == BALANCE_ACCURACY -> "$raw mV"
+        else -> formatByEncoding(raw)
+    }
+
+    private fun formatByEncoding(raw: Int): String = when (encoding) {
         Encoding.BITS -> "0x%04X".format(Locale.ROOT, raw)
         Encoding.MILLIVOLTS -> "%.3f V".format(Locale.ROOT, encoding.fromRaw(raw))
         Encoding.TEN_MILLIVOLTS -> "%.2f V".format(Locale.ROOT, encoding.fromRaw(raw))
