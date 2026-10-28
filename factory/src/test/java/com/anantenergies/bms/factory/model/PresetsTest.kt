@@ -52,8 +52,8 @@ class PresetsTest {
         )
         Presets.all.forEach {
             assertEquals(it.name, card, it.values.keys)
-            // The one card item the board refuses over Bluetooth.
-            assertEquals(listOf("MOS high temperature protect: 90 °C"), it.setByHand)
+            // The card's MOS high temperature has no setting on the SP17S005 (owner, 2026-10-28).
+            assertEquals(emptyList<String>(), it.setByHand)
         }
     }
 

@@ -55,12 +55,12 @@ class ChecklistTest {
         val problems = Checklist.problems(
             auto,
             ChecklistInput("", null, 34, ManualCheck.entries.toSet() - ManualCheck.FUSE_FITTED, emptySet()),
-            setByHand,
+            listOf("Example item set in the JBD app"),
         )
         assertEquals(
             listOf(
                 "Not ticked: 80 A DC fuse fitted at pack positive",
-                "Not confirmed: MOS high temperature protect: 90 °C",
+                "Not confirmed: Example item set in the JBD app",
                 "Operator name missing",
                 "Pack resistance missing",
                 "End-of-charge delta 34 mV is over 15 mV: top-balance with the NEEY",

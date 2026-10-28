@@ -25,8 +25,8 @@ android {
         minSdk = 26
         targetSdk = 37
         // Raise both for every APK sent to staff: Android refuses an "update" with the same or a lower versionCode.
-        versionCode = 2
-        versionName = "0.2"
+        versionCode = 3
+        versionName = "0.3"
     }
 
     signingConfigs {

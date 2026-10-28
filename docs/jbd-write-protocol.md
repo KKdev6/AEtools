@@ -83,7 +83,7 @@ Old-protocol register / new-protocol address. Values are unsigned 16-bit big-end
 | Discharge OC delay, release delay | 0x3F | 54 / 55 | old: packed as above |
 | SOC 90 / 70 / 50 / 30 / 10 % | 0x42–0x46 | 106–110 | mV |
 | SOC 100 % | 0x47 | 111 | mV |
-| MOS high temperature | (unclear) | 202 / 203 | 0.1 K. **The SP17S005 refuses reading 202–203 (status 82, 2026-10-28)**, so the factory app neither reads nor writes it there; staff set it by hand in the JBD app. Where the JBD app stores it on this board is unknown (a capture of changing it would show) |
+| MOS high temperature | (unclear) | 202 / 203 | 0.1 K. **The SP17S005 refuses reading 202–203 (status 82, 2026-10-28)**, and the JBD app shows no MOS temperature setting for it anywhere (owner, 2026-10-28): this board doesn't have one, so the factory app neither reads nor writes it |
 
 The packed delays only apply to old-protocol boards. If one is ever added, confirm their byte order with a
 capture first (the app's parser reads byte 0 as the first value, byte 1 as the second).
