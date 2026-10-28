@@ -59,13 +59,14 @@ object BmsModels {
         id = "SP17S005",
         boardPrefix = "SP17S005",
         chipType = 1,
-        writable = JbdSetting.entries.toSet() - BmsModelProfile.NEVER_WRITTEN,
+        // MOS high temperature (address 202) is refused by the real board (status 82), so it's set by hand.
+        writable = JbdSetting.entries.toSet() - BmsModelProfile.NEVER_WRITTEN - JbdSetting.MOS_HIGH_TEMP,
         readOnly = BmsModelProfile.NEVER_WRITTEN,
-        // The JBD app v2.0.1's reads (BaseParamProtocol); 0x10 × 8, 0x30 × 4, 0x26 × 2, 0x1A × 2 and
-        // 0x1D × 2 are confirmed in the real-board capture.
+        // The JBD app v2.0.1's reads (BaseParamProtocol), all answered by the real board (2026-10-28 log).
+        // Its 202–203 read is refused there.
         readBlocks = listOf(
             0..1, 2..3, 8..15, 16..23, 24..25, 26..27, 29..30, 31..31,
-            34..37, 38..39, 40..43, 44..47, 48..51, 52..55, 106..111, 202..203,
+            34..37, 38..39, 40..43, 44..47, 48..51, 52..55, 106..111,
         ),
         ratedDischargeAmps = 60.0,
         lock = SettingsLock.NONE,

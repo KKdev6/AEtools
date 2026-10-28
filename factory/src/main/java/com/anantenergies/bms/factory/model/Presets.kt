@@ -13,6 +13,8 @@ data class Preset(
     val model: BmsModelProfile,
     val cardRevision: String,
     val values: Map<JbdSetting, Double>,
+    /** Card items this board can't take over Bluetooth: staff set them by hand in the JBD app. */
+    val setByHand: List<String> = emptyList(),
 ) {
     init {
         val notWritable = values.keys.filter { it !in model.writable }
@@ -41,6 +43,9 @@ enum class PackModel(
 object Presets {
     private const val CARD = "60V NMC card Rev 4.0"
 
+    /** The SP17S005 refuses the MOS temperature address, so this card item stays a JBD app step. */
+    private val SET_BY_HAND_60V = listOf("MOS high temperature protect: 90 °C")
+
     /** Everything the two 60V presets share. */
     private val shared60V: Map<JbdSetting, Double> = mapOf(
         CELL_LOW to 2.70,
@@ -67,7 +72,6 @@ object Presets {
         DISCHARGE_HIGH_TEMP_RECOVER to 50.0,
         DISCHARGE_LOW_TEMP to -15.0,
         DISCHARGE_LOW_TEMP_RECOVER to -10.0,
-        MOS_HIGH_TEMP to 90.0,
         CHARGE_HIGH_TEMP_DELAY to 5.0,
         CHARGE_LOW_TEMP_DELAY to 5.0,
         DISCHARGE_HIGH_TEMP_DELAY to 5.0,
@@ -84,6 +88,7 @@ object Presets {
         name = "60V 23Ah",
         model = BmsModels.SP17S005,
         cardRevision = CARD,
+        setByHand = SET_BY_HAND_60V,
         values = shared60V + mapOf(
             CELL_HIGH to 4.18,
             CELL_HIGH_RECOVER to 4.10,
@@ -99,6 +104,7 @@ object Presets {
         name = "60V 27–41Ah",
         model = BmsModels.SP17S005,
         cardRevision = CARD,
+        setByHand = SET_BY_HAND_60V,
         values = shared60V + mapOf(
             CELL_HIGH to 4.20,
             CELL_HIGH_RECOVER to 4.15,

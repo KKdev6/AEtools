@@ -48,7 +48,7 @@ class ReadAllTest {
     fun `a refused read fails the whole read`() = runTest {
         val refusing = BoardChannel { frame, register ->
             val address = (frame[4].toInt() and 0xFF) shl 8 or (frame[5].toInt() and 0xFF)
-            if (address == JbdSetting.MOS_HIGH_TEMP.address) BoardReply.Refused(1) else board.send(frame, register)
+            if (address == JbdSetting.SOC_90.address) BoardReply.Refused(0x82) else board.send(frame, register)
         }
         assertNull(PresetApplier(refusing).readAll(profile))
     }

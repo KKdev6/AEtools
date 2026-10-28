@@ -56,6 +56,14 @@ class JbdSettingsFramesTest {
     }
 
     @Test
+    fun `real-board SOC read decodes, and the refused MOS temperature read is rejected`() {
+        val soc = assemble("DD FA 00 0F 00 6A 06 0F BE 0F 32 0E A6 0D FC 0C E4 10 04 FB", "B2 77")
+        assertEquals(listOf(4030, 3890, 3750, 3580, 3300, 4100), JbdSettingsFrames.readValues(soc.data, 0x6A, 6))
+        val refused = JbdFrameAssembler().feed(hex("DD FA 82 00 FF 7E 77")).single() as JbdFrameEvent.Rejected
+        assertEquals(com.anantenergies.bms.drivers.jbd.JbdRejection.ERROR_STATUS, refused.reason)
+    }
+
+    @Test
     fun `read reply for a different address is not accepted`() {
         val reply = assemble("DD FA 00 07 00 1A 02 0F 3C 00 0F FF 83 77")
         assertEquals(listOf(3900, 15), JbdSettingsFrames.readValues(reply.data, 0x1A, 2))

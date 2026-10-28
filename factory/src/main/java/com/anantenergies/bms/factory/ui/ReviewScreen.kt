@@ -47,6 +47,15 @@ fun ReviewScreen(step: Step.Review, onApply: () -> Unit, onEdit: () -> Unit) {
                     Text("${plan.profile.id} · ${step.board.address}", style = AeTheme.type.number, color = AeTheme.colors.textSecondary)
                 }
             }
+            if (plan.pack.preset.setByHand.isNotEmpty()) {
+                item {
+                    MessageCard(
+                        "Set by hand in the JBD app",
+                        plan.pack.preset.setByHand + "This BMS doesn't take it over Bluetooth, so the app doesn't write it.",
+                        Tone.NEUTRAL,
+                    )
+                }
+            }
             if (plan.capacityOutOfRange) {
                 item { MessageCard("Tested capacity outside the expected range", listOf("Continue only if the test and pack model are right."), Tone.WARNING) }
             }

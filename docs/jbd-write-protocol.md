@@ -36,6 +36,10 @@ Same framing and checksum as the read requests: checksum = `0x10000 − sum(byte
 - Function bits (address 29): `0x0006` = static balance, `0x000E` = charge balance. So bit 3 (`0x08`) is
   charge balance, bit 2 (`0x04`) balance on, bit 1 (`0x02`) load detect. Change only bit 3 (read-modify-write).
 - NTC enable bits (address 30) read `0x0007`: three sensors enabled.
+- Second real-board log (2026-10-28, factory app): every read group of the JBD app is answered (0–1, 2–3, 8–15,
+  16–23, 24–25, 26–27, 29–30, 31, 34–37, 38–39, 40–43, 44–47, 48–51, 52–55, 106–111) except 202–203. The values
+  decode sensibly with the encodings below (e.g. temperatures 65 / 55 / −30 / −25 °C, discharge OC 60 A as `E8 90`,
+  SOC 100 % 4.100 V), which supports the encodings of the settings the first capture didn't touch.
 - The JBD app also sends `FF AA 19 01 01 1B` (module info) and `FF AA 06 00 06` (module name) on connect. These go
   to the Bluetooth module, not the BMS; the factory app does not need them.
 
@@ -79,7 +83,7 @@ Old-protocol register / new-protocol address. Values are unsigned 16-bit big-end
 | Discharge OC delay, release delay | 0x3F | 54 / 55 | old: packed as above |
 | SOC 90 / 70 / 50 / 30 / 10 % | 0x42–0x46 | 106–110 | mV |
 | SOC 100 % | 0x47 | 111 | mV |
-| MOS high temperature | (unclear) | 202 / 203 | 0.1 K. The app's old-protocol table says 0x2E / 0x2F, which clash with NTC bits and cell count; treat as new-protocol only until confirmed |
+| MOS high temperature | (unclear) | 202 / 203 | 0.1 K. **The SP17S005 refuses reading 202–203 (status 82, 2026-10-28)**, so the factory app neither reads nor writes it there; staff set it by hand in the JBD app. Where the JBD app stores it on this board is unknown (a capture of changing it would show) |
 
 The packed delays only apply to old-protocol boards. If one is ever added, confirm their byte order with a
 capture first (the app's parser reads byte 0 as the first value, byte 1 as the second).

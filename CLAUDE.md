@@ -263,7 +263,7 @@ Two presets. Each records its card revision, and the log sheet stores it with ev
 | Charge low temp protect / recover | 3 / 8 °C | same |
 | Discharge high temp protect / recover | 60 / 50 °C | same |
 | Discharge low temp protect / recover | −15 / −10 °C | same |
-| MOS high temp protect | 90 °C (recover not written) | same |
+| MOS high temp protect | 90 °C, set by hand in the JBD app: the SP17S005 refuses its address (202) over Bluetooth, so the review and pass screens remind staff | same |
 | Temperature delays | 5 s each | same |
 | Balance | on, charge balance (never static) | same |
 | Balance voltage / accuracy | 4.09 V / 15 mV | 4.14 V / 15 mV |
@@ -309,7 +309,8 @@ The simulated JBD board (debug builds) gains write support: register store, sett
   - After a link drop mid-apply the real board may still be in settings mode with unsaved writes: F3 tells the operator to power-cycle before trying again.
 - **F3. Factory app: apply and verify.** Connect, identify, choose a preset, enter tested Ah, review, apply, read back, power-cycle and verify again. Tried against the simulated board first, then on one real pack.
   - Built: `flow/FactorySession` (the steps), `ui/` (board list with Bluetooth checks, pack details, review with current → new values, progress, results, power-cycle, final check, Bluetooth log with Copy all). Debug builds list "Simulated SP17S005" at the top of the board list with a fault picker under it. 125 unit tests pass, including the whole flow against the simulated board.
-  - Not yet tried: on a phone or emulator by the owner, and on one real pack.
+  - Owner tried the whole flow on the emulator with the simulated board, including every fault (2026-10-28).
+  - First real pack (2026-10-28): connected and identified; the backup read failed because 8-register reads crossed the JBD app's groups, and then because the board refuses address 202 (MOS high temp). Fixed: profiles list their read blocks (from the JBD app), and MOS high temp is a set-by-hand item for the SP17S005. Writing to the real pack is still to try.
 - **F4. Checklist and log sheet.** Checklist screen, log storage, CSV export.
 
 ## Release signing

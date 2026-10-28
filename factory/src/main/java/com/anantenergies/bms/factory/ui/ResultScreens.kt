@@ -101,7 +101,7 @@ fun VerifiedScreen(step: Step.Verified, onRetryVerify: () -> Unit, onRetry: () -
                 if (result.passed) {
                     MessageCard(
                         "Pack ${step.details.packNumber} passed",
-                        listOf("Now bind this pack in the JBD app."),
+                        step.plan.pack.preset.setByHand.map { "In the JBD app, also set $it" } + "Now bind this pack in the JBD app.",
                         Tone.OK,
                     )
                     PrimaryButton("Next pack", onDone, Modifier.fillMaxWidth())
