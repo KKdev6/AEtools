@@ -319,6 +319,7 @@ The simulated JBD board (debug builds) gains write support: register store, sett
 ### Changes to make (owner's list; do them together when the owner says go)
 
 1. **Check the cell count before writing.** Found 2026-11-05: a board reporting 11 cells got the 16S 60V preset written, and only the checklist caught it afterwards. The backup read already includes cell count (address 31): if it isn't the profile's cell count (16 for SP17S005), stop before the review with "This BMS is set to N cells; these presets are for 16. Nothing was written." Add a test with the simulated board set to 11 cells. Also fix the stale comment in `BmsModelProfile.kt` that says MOS high temperature is "set by hand".
+2. **Scan the pack's JBD QR code to connect.** A "Scan QR code" button at the top of the board list opens the Google code scanner (already in `core/qr/QrScanner`), reads the BMS address with `MacAddress` and connects to that board, like the customer app's QR connect (short scan for the address first; "BMS not found. Make sure it's nearby." with Retry). JBD's labels are expected to hold `…?qrCodeInfo=<MAC>` (seen in the JBD app's code), with or without colons: add a test for both, and confirm on a real label. The factory manifest also needs the scanner download meta-data the customer app has. Debug builds: a QR code with the simulated board's address connects to it.
 
 ### Getting the app to staff (owner decision, 2026-10-28)
 
